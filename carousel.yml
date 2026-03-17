@@ -1,0 +1,54 @@
+# .github/workflows/carousel.yml
+# Automated carousel posting for The London Choral Service
+# Runs every Monday and Thursday at 9am UK time
+
+name: LCS Carousel Post
+
+on:
+  schedule:
+    # 9am UK time (GMT/BST) — use 08:00 UTC for GMT, 09:00 UTC for BST
+    # Adjust seasonally or use a fixed UTC time
+    - cron: '0 9 * * 1'   # Monday 9am UTC
+    - cron: '0 9 * * 4'   # Thursday 9am UTC
+  workflow_dispatch:         # Allow manual trigger from GitHub UI
+
+jobs:
+  post-carousel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Puppeteer
+        run: npx puppeteer browsers install chrome
+
+      - name: Run carousel pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_ORG_ID: ${{ secrets.LINKEDIN_ORG_ID }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+        run: node scripts/pipeline.js
+
+      - name: Upload rendered slides as artifacts (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: carousel-slides-${{ github.run_id }}
+          path: output/
+          retention-days: 7

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1080px;
+    height: 1350px;
+    overflow: hidden;
+    font-family: 'Source Serif 4', Georgia, serif;
+    background: #1a1a2e;
+    color: #f5f0e8;
+  }
+
+  /* ── HOOK SLIDE ── */
+  .slide-hook {
+    width: 1080px;
+    height: 1350px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 80px;
+    background:
+      radial-gradient(ellipse at 20% 80%, rgba(201, 168, 76, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(201, 168, 76, 0.06) 0%, transparent 50%),
+      linear-gradient(175deg, #1a1a2e 0%, #0f0f1e 100%);
+    position: relative;
+  }
+
+  .slide-hook::before {
+    content: '';
+    position: absolute;
+    top: 40px;
+    left: 40px;
+    right: 40px;
+    bottom: 40px;
+    border: 1px solid rgba(201, 168, 76, 0.25);
+    pointer-events: none;
+  }
+
+  .slide-hook .logo-mark {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 300;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: rgba(201, 168, 76, 0.7);
+    margin-bottom: 60px;
+  }
+
+  .slide-hook .icon {
+    font-size: 64px;
+    margin-bottom: 40px;
+    filter: grayscale(0.2);
+  }
+
+  .slide-hook h1 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 72px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: #f5f0e8;
+    max-width: 860px;
+    margin-bottom: 40px;
+  }
+
+  .slide-hook .swipe-cue {
+    position: absolute;
+    bottom: 70px;
+    font-family: 'Source Serif 4', serif;
+    font-size: 18px;
+    font-weight: 300;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(201, 168, 76, 0.5);
+  }
+
+  .slide-hook .swipe-cue::after {
+    content: ' →';
+  }
+
+  /* ── CONTENT SLIDE ── */
+  .slide-content {
+    width: 1080px;
+    height: 1350px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 90px;
+    position: relative;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(201, 168, 76, 0.04) 0%, transparent 40%),
+      #f5f0e8;
+    color: #1a1a2e;
+  }
+
+  .slide-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 8px;
+    height: 100%;
+    background: linear-gradient(180deg, #c9a84c 0%, #8b6914 100%);
+  }
+
+  .slide-content .slide-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 120px;
+    font-weight: 700;
+    color: rgba(201, 168, 76, 0.15);
+    position: absolute;
+    top: 50px;
+    right: 70px;
+    line-height: 1;
+  }
+
+  .slide-content .icon {
+    font-size: 56px;
+    margin-bottom: 30px;
+  }
+
+  .slide-content h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 54px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #1a1a2e;
+    margin-bottom: 30px;
+    max-width: 780px;
+  }
+
+  .slide-content p {
+    font-family: 'Source Serif 4', serif;
+    font-size: 32px;
+    font-weight: 300;
+    line-height: 1.55;
+    color: #3a3a4e;
+    max-width: 780px;
+  }
+
+  .slide-content .brand-line {
+    position: absolute;
+    bottom: 60px;
+    left: 90px;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    font-weight: 300;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(201, 168, 76, 0.5);
+  }
+
+  /* ── CTA SLIDE ── */
+  .slide-cta {
+    width: 1080px;
+    height: 1350px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 80px;
+    background:
+      radial-gradient(ellipse at 50% 50%, rgba(201, 168, 76, 0.12) 0%, transparent 60%),
+      linear-gradient(175deg, #1a1a2e 0%, #0f0f1e 100%);
+    position: relative;
+  }
+
+  .slide-cta::before {
+    content: '';
+    position: absolute;
+    top: 40px;
+    left: 40px;
+    right: 40px;
+    bottom: 40px;
+    border: 1px solid rgba(201, 168, 76, 0.25);
+  }
+
+  .slide-cta .icon {
+    font-size: 56px;
+    margin-bottom: 40px;
+  }
+
+  .slide-cta h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 58px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #f5f0e8;
+    margin-bottom: 30px;
+    max-width: 800px;
+  }
+
+  .slide-cta p {
+    font-family: 'Source Serif 4', serif;
+    font-size: 30px;
+    font-weight: 300;
+    line-height: 1.55;
+    color: rgba(245, 240, 232, 0.8);
+    max-width: 700px;
+    margin-bottom: 50px;
+  }
+
+  .slide-cta .cta-url {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    font-weight: 400;
+    letter-spacing: 3px;
+    color: #c9a84c;
+    padding: 20px 50px;
+    border: 1.5px solid rgba(201, 168, 76, 0.5);
+  }
+
+  .slide-cta .brand-footer {
+    position: absolute;
+    bottom: 65px;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    font-weight: 300;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(201, 168, 76, 0.4);
+  }
+</style>
+</head>
+<body>
+  <!-- This template is rendered once per slide by Puppeteer.
+       The renderer injects the correct slide class and content. -->
+  <div id="slide"></div>
+
+  <script>
+    // Slide data is injected by Puppeteer via page.evaluate()
+    function renderSlide(slide, index, total) {
+      const el = document.getElementById('slide');
+
+      if (slide.type === 'hook') {
+        el.className = 'slide-hook';
+        el.innerHTML = `
+          <div class="logo-mark">The London Choral Service</div>
+          <div class="icon">${slide.icon || ''}</div>
+          <h1>${slide.headline}</h1>
+          <div class="swipe-cue">Swipe to read</div>
+        `;
+      } else if (slide.type === 'cta') {
+        el.className = 'slide-cta';
+        el.innerHTML = `
+          <div class="icon">${slide.icon || ''}</div>
+          <h2>${slide.headline}</h2>
+          <p>${slide.body}</p>
+          <div class="cta-url">londonchoralservice.com</div>
+          <div class="brand-footer">The London Choral Service</div>
+        `;
+      } else {
+        el.className = 'slide-content';
+        el.innerHTML = `
+          <div class="slide-number">${index}</div>
+          <div class="icon">${slide.icon || ''}</div>
+          <h2>${slide.headline}</h2>
+          <p>${slide.body}</p>
+          <div class="brand-line">The London Choral Service</div>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>
