@@ -465,7 +465,7 @@ app.get('/{*splat}', (req, res) => {
 
 // ── Start ──
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════╗');
   console.log('║   LCS Post Approval Dashboard                ║');
