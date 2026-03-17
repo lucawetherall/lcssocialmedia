@@ -6,13 +6,16 @@
   "scripts": {
     "start": "node scripts/pipeline.js",
     "dry-run": "node scripts/pipeline.js --dry-run",
-    "render-only": "node scripts/pipeline.js --render-only"
+    "render-only": "node scripts/pipeline.js --render-only",
+    "dashboard": "node dashboard/server.js"
   },
   "dependencies": {
+    "better-sqlite3": "^12.8.0",
     "dotenv": "^16.4.0",
-    "puppeteer": "^23.0.0",
-    "pdf-lib": "^1.17.1",
+    "express": "^5.2.1",
     "form-data": "^4.0.0",
-    "node-fetch": "^3.3.0"
+    "node-fetch": "^3.3.0",
+    "pdf-lib": "^1.17.1",
+    "puppeteer": "^23.0.0"
   }
 }
