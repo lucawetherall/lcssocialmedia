@@ -12,6 +12,7 @@ import { renderPostSlides, renderSingleSlide, closeBrowser } from './render-help
 import { generateCarouselContent } from '../content-generator.js';
 import { postToLinkedIn, postToInstagram, postToFacebook, postToTikTok } from '../poster.js';
 import { CONFIG } from '../config.js';
+import { cfAccessAuth } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, 'data');
@@ -19,6 +20,7 @@ const PORT = process.env.DASHBOARD_PORT || 3000;
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
+app.use(cfAccessAuth);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve rendered slide images
