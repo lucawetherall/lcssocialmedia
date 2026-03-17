@@ -30,59 +30,60 @@ export async function renderCarousel(content, templateName = 'listicle') {
     ],
   });
 
-  const page = await browser.newPage();
-  await page.setViewport({
-    width: CONFIG.slide.width,
-    height: CONFIG.slide.height,
-    deviceScaleFactor: 2, // 2x for crisp rendering
-  });
-
-  // Load the template
-  await page.setContent(templateHtml, { waitUntil: 'networkidle0' });
-
-  // Wait for Google Fonts to load
-  await page.evaluate(() => document.fonts.ready);
-
   const imagePaths = [];
 
-  // Render each slide
-  for (let i = 0; i < content.slides.length; i++) {
-    const slide = content.slides[i];
-    const slideIndex = slide.type === 'content' ? i : i; // content slides are 1-indexed
-
-    // Inject slide data and render
-    await page.evaluate(
-      (slideData, idx, total) => {
-        renderSlide(slideData, idx, total);
-      },
-      slide,
-      i,
-      content.slides.length
-    );
-
-    // Small delay for any CSS transitions/reflows
-    await new Promise((r) => setTimeout(r, 200));
-
-    // Screenshot
-    const filename = `slide-${String(i + 1).padStart(2, '0')}.png`;
-    const filepath = path.join(OUTPUT_DIR, filename);
-
-    await page.screenshot({
-      path: filepath,
-      type: 'png',
-      clip: {
-        x: 0,
-        y: 0,
-        width: CONFIG.slide.width,
-        height: CONFIG.slide.height,
-      },
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({
+      width: CONFIG.slide.width,
+      height: CONFIG.slide.height,
+      deviceScaleFactor: 2, // 2x for crisp rendering
     });
 
-    imagePaths.push(filepath);
-    console.log(`  ✓ Rendered ${filename}`);
-  }
+    // Load the template — 30s timeout guards against slow/unavailable Google Fonts CDN
+    await page.setContent(templateHtml, { waitUntil: 'networkidle0', timeout: 30000 });
 
-  await browser.close();
+    // Wait for Google Fonts to load
+    await page.evaluate(() => document.fonts.ready);
+
+    // Render each slide
+    for (let i = 0; i < content.slides.length; i++) {
+      const slide = content.slides[i];
+
+      // Inject slide data and render
+      await page.evaluate(
+        (slideData, idx, total) => {
+          renderSlide(slideData, idx, total);
+        },
+        slide,
+        i,
+        content.slides.length
+      );
+
+      // Small delay for any CSS transitions/reflows
+      await new Promise((r) => setTimeout(r, 200));
+
+      // Screenshot
+      const filename = `slide-${String(i + 1).padStart(2, '0')}.png`;
+      const filepath = path.join(OUTPUT_DIR, filename);
+
+      await page.screenshot({
+        path: filepath,
+        type: 'png',
+        clip: {
+          x: 0,
+          y: 0,
+          width: CONFIG.slide.width,
+          height: CONFIG.slide.height,
+        },
+      });
+
+      imagePaths.push(filepath);
+      console.log(`  ✓ Rendered ${filename}`);
+    }
+  } finally {
+    await browser.close();
+  }
 
   // Generate combined PDF for LinkedIn
   const pdfPath = await generatePdf(imagePaths, content.topic);
