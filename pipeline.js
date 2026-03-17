@@ -23,9 +23,26 @@ async function main() {
   console.log('╚══════════════════════════════════════════════╝');
   console.log('');
 
+  // ── Step 2 prep: Pick template first so content generation can match its format ──
+  const template = CONFIG.templates[Math.floor(Math.random() * CONFIG.templates.length)];
+
+  // Validate template exists, fall back to listicle if not
+  let templateName = template;
+  try {
+    const { access } = await import('fs/promises');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    await access(path.join(__dirname, '..', 'templates', `${template}.html`));
+  } catch {
+    console.log(`│  ⚠ Template "${template}" not found, using "listicle"`);
+    templateName = 'listicle';
+  }
+
   // ── Step 1: Generate content ──
   console.log('┌─ Step 1: Content Generation ─────────────────');
-  const content = await generateCarouselContent(topicOverride);
+  console.log(`│  Template: ${templateName}`);
+  const content = await generateCarouselContent(topicOverride, templateName);
   console.log(`│  Topic: "${content.topic}"`);
   console.log(`│  Slides: ${content.slides.length}`);
   console.log(`│  Caption: ${content.caption.substring(0, 80)}...`);
@@ -40,23 +57,7 @@ async function main() {
 
   // ── Step 2: Render slides ──
   console.log('┌─ Step 2: Rendering Slides ───────────────────');
-
-  // Pick a random template
-  const template = CONFIG.templates[Math.floor(Math.random() * CONFIG.templates.length)];
-  console.log(`│  Template: ${template}`);
-
-  // For now, fall back to listicle if template doesn't exist
-  let templateName = template;
-  try {
-    const { access } = await import('fs/promises');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    await access(path.join(__dirname, '..', 'templates', `${template}.html`));
-  } catch {
-    console.log(`│  ⚠ Template "${template}" not found, using "listicle"`);
-    templateName = 'listicle';
-  }
+  console.log(`│  Template: ${templateName}`);
 
   const { imagePaths, pdfPath } = await renderCarousel(content, templateName);
   console.log(`│  Images: ${imagePaths.length} PNGs`);

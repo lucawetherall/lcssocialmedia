@@ -6,7 +6,7 @@ Fully automated carousel/infographic post generation for **The London Choral Ser
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Cron Trigger    │────▶│  Claude API       │────▶│  Puppeteer      │
+│  Cron Trigger    │────▶│  Gemini API       │────▶│  Puppeteer      │
 │  (GitHub Action  │     │  Content Gen      │     │  Render to PNG  │
 │   or local cron) │     │  (structured JSON)│     │  + PDF (LinkedIn)│
 └─────────────────┘     └──────────────────┘     └────────┬────────┘

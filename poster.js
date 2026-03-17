@@ -53,7 +53,7 @@ export async function postToLinkedIn(pdfPath, caption) {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
-        'LinkedIn-Version': '202602',
+        'LinkedIn-Version': CONFIG.api.linkedInVersion,
         'X-Restli-Protocol-Version': '2.0.0',
       },
       body: JSON.stringify({
@@ -90,7 +90,7 @@ export async function postToLinkedIn(pdfPath, caption) {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
-        'LinkedIn-Version': '202602',
+        'LinkedIn-Version': CONFIG.api.linkedInVersion,
         'X-Restli-Protocol-Version': '2.0.0',
       },
       body: JSON.stringify({
@@ -138,20 +138,16 @@ export async function postToInstagram(imagePaths, caption) {
   console.log('⎔ Posting to Instagram...');
 
   try {
-    // Step 1: Upload images to imgbb (IG needs public URLs)
+    // Step 1: Upload images to imgbb in parallel (IG needs public URLs)
     console.log('  ⎔ Uploading images to imgbb...');
-    const imageUrls = [];
-    for (const imgPath of imagePaths) {
-      const url = await uploadToImgbb(imgPath);
-      imageUrls.push(url);
-    }
+    const imageUrls = await Promise.all(imagePaths.map((p) => uploadToImgbb(p)));
     console.log(`  ✓ ${imageUrls.length} images uploaded`);
 
     // Step 2: Create child containers for each image
     const containerIds = [];
     for (const url of imageUrls) {
       const res = await fetch(
-        `https://graph.instagram.com/v25.0/${igUserId}/media`,
+        `https://graph.instagram.com/${CONFIG.api.graphApiVersion}/${igUserId}/media`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -170,9 +166,16 @@ export async function postToInstagram(imagePaths, caption) {
       }
     }
 
+    if (containerIds.length === 0) {
+      throw new Error('IG: all container creations failed — no images to post');
+    }
+    if (containerIds.length < imageUrls.length) {
+      console.warn(`  ⚠ IG: only ${containerIds.length}/${imageUrls.length} containers created — posting partial carousel`);
+    }
+
     // Step 3: Create carousel container
     const carouselRes = await fetch(
-      `https://graph.instagram.com/v25.0/${igUserId}/media`,
+      `https://graph.instagram.com/${CONFIG.api.graphApiVersion}/${igUserId}/media`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -195,7 +198,7 @@ export async function postToInstagram(imagePaths, caption) {
     await new Promise((r) => setTimeout(r, 5000));
 
     const publishRes = await fetch(
-      `https://graph.instagram.com/v25.0/${igUserId}/media_publish`,
+      `https://graph.instagram.com/${CONFIG.api.graphApiVersion}/${igUserId}/media_publish`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -231,12 +234,12 @@ export async function postToFacebook(imagePaths, caption) {
   console.log('⎔ Posting to Facebook...');
 
   try {
-    // Step 1: Upload each image as unpublished photo
-    const photoIds = [];
-    for (const imgPath of imagePaths) {
-      const url = await uploadToImgbb(imgPath);
+    // Step 1: Upload each image as unpublished photo (parallel)
+    const imageUrls = await Promise.all(imagePaths.map((p) => uploadToImgbb(p)));
 
-      const res = await fetch(`https://graph.facebook.com/v25.0/${pageId}/photos`, {
+    const photoIds = [];
+    for (const url of imageUrls) {
+      const res = await fetch(`https://graph.facebook.com/${CONFIG.api.graphApiVersion}/${pageId}/photos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -253,10 +256,17 @@ export async function postToFacebook(imagePaths, caption) {
       }
     }
 
+    if (photoIds.length === 0) {
+      throw new Error('FB: all photo uploads failed — nothing to post');
+    }
+    if (photoIds.length < imageUrls.length) {
+      console.warn(`  ⚠ FB: only ${photoIds.length}/${imageUrls.length} photos uploaded — posting partial`);
+    }
+
     // Step 2: Create multi-photo post
     const attachedMedia = photoIds.map((id) => ({ media_fbid: id }));
 
-    const postRes = await fetch(`https://graph.facebook.com/v25.0/${pageId}/feed`, {
+    const postRes = await fetch(`https://graph.facebook.com/${CONFIG.api.graphApiVersion}/${pageId}/feed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -291,7 +301,7 @@ export async function postToTikTok(imagePaths, caption) {
 
   try {
     // Step 1: Initialize photo post
-    const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/content/init/', {
+    const initRes = await fetch(`https://open.tiktokapis.com/${CONFIG.api.tikTokApiVersion}/post/publish/content/init/`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
