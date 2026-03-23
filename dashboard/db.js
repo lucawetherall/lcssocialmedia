@@ -4,6 +4,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import migrate001 from './migrations/001-add-error-tracking.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, 'data', 'dashboard.db');
@@ -57,12 +58,42 @@ for (const [key, value] of Object.entries(defaultSettings)) {
   upsertSetting.run(key, value);
 }
 
+// ── Migration system ──
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER NOT NULL DEFAULT 0
+  );
+`);
+
+const versionRow = db.prepare('SELECT version FROM schema_version').get();
+if (!versionRow) {
+  db.prepare('INSERT INTO schema_version (version) VALUES (0)').run();
+}
+
+function getCurrentVersion() {
+  return db.prepare('SELECT version FROM schema_version').get()?.version || 0;
+}
+
+function setVersion(v) {
+  db.prepare('UPDATE schema_version SET version = ?').run(v);
+}
+
+const migrations = [migrate001];
+
+const currentVersion = getCurrentVersion();
+for (let i = currentVersion; i < migrations.length; i++) {
+  console.log(`Running migration ${i + 1}...`);
+  migrations[i](db);
+  setVersion(i + 1);
+}
+
 // ── Queries ──
 
 export const queries = {
   // Posts
   getAllPosts: db.prepare(
-    'SELECT * FROM posts ORDER BY CASE status WHEN \'draft\' THEN 1 WHEN \'approved\' THEN 2 WHEN \'scheduled\' THEN 3 WHEN \'published\' THEN 4 WHEN \'rejected\' THEN 5 END, created_at DESC'
+    'SELECT * FROM posts ORDER BY CASE status WHEN \'draft\' THEN 1 WHEN \'approved\' THEN 2 WHEN \'scheduled\' THEN 3 WHEN \'publishing\' THEN 3 WHEN \'failed\' THEN 4 WHEN \'published\' THEN 5 WHEN \'rejected\' THEN 6 END, created_at DESC'
   ),
 
   getPostsByStatus: db.prepare(
@@ -109,6 +140,17 @@ export const queries = {
     AND scheduled_at <= datetime('now')
     ORDER BY scheduled_at ASC
   `),
+
+  // Error tracking
+  updatePostError: db.prepare(
+    "UPDATE posts SET last_error = ?, retry_count = retry_count + 1, updated_at = datetime('now') WHERE id = ?"
+  ),
+  clearPostError: db.prepare(
+    "UPDATE posts SET last_error = NULL, retry_count = 0, updated_at = datetime('now') WHERE id = ?"
+  ),
+  getFailedPosts: db.prepare(
+    "SELECT * FROM posts WHERE status = 'failed' ORDER BY updated_at DESC"
+  ),
 
   // Settings
   getSetting: db.prepare('SELECT value FROM settings WHERE key = ?'),
