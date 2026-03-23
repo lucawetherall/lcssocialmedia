@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import migrate001 from './migrations/001-add-error-tracking.js';
+import migrate002 from './migrations/002-add-topic-history.js';
 
 describe('database', () => {
   let db;
@@ -59,6 +60,31 @@ describe('database', () => {
     it('is idempotent — can run twice without error', () => {
       migrate001(db);
       expect(() => migrate001(db)).not.toThrow();
+    });
+  });
+
+  describe('migration 002: topic history', () => {
+    it('creates topic_history table', () => {
+      migrate001(db);
+      migrate002(db);
+
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name);
+      expect(tables).toContain('topic_history');
+    });
+
+    it('creates indexes on topic and used_at', () => {
+      migrate001(db);
+      migrate002(db);
+
+      const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type='index'").all().map(r => r.name);
+      expect(indexes).toContain('idx_topic_history_topic');
+      expect(indexes).toContain('idx_topic_history_used_at');
+    });
+
+    it('is idempotent — can run twice without error', () => {
+      migrate001(db);
+      migrate002(db);
+      expect(() => migrate002(db)).not.toThrow();
     });
   });
 

@@ -5,6 +5,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import migrate001 from './migrations/001-add-error-tracking.js';
+import migrate002 from './migrations/002-add-topic-history.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, 'data', 'dashboard.db');
@@ -79,7 +80,7 @@ function setVersion(v) {
   db.prepare('UPDATE schema_version SET version = ?').run(v);
 }
 
-const migrations = [migrate001];
+const migrations = [migrate001, migrate002];
 
 const currentVersion = getCurrentVersion();
 for (let i = currentVersion; i < migrations.length; i++) {
@@ -150,6 +151,14 @@ export const queries = {
   ),
   getFailedPosts: db.prepare(
     "SELECT * FROM posts WHERE status = 'failed' ORDER BY updated_at DESC"
+  ),
+
+  // Topic history
+  recordTopicUsage: db.prepare(
+    'INSERT INTO topic_history (topic) VALUES (?)'
+  ),
+  getRecentTopics: db.prepare(
+    "SELECT DISTINCT topic FROM topic_history WHERE used_at > datetime('now', '-30 days')"
   ),
 
   // Settings
