@@ -1,174 +1,102 @@
-# Deployment Guide: Oracle Cloud VPS + Cloudflare Access
+# Deployment Guide
 
-Private dashboard accessible only by you, from anywhere, for free.
+Deploy your dashboard to the internet — accessible from anywhere, free forever.
 
 ```
-Browser → Cloudflare Access (auth) → Cloudflare Proxy (SSL) → Oracle VPS → Express Dashboard
+Browser → HTTPS (Caddy) → Password Prompt → Express Dashboard
+GitHub Actions → API Key Header → /api/auto-generate
 ```
 
 ---
 
-## 1. Oracle Cloud Always Free VPS
+## Quick Start (10 minutes)
 
-### Create the VM
+### Prerequisites
 
-1. Sign up at [cloud.oracle.com](https://cloud.oracle.com) (credit card required for verification, never charged)
+1. **Oracle Cloud Always Free account** — [cloud.oracle.com](https://cloud.oracle.com)
+   - Credit card required for verification, but you are never charged
+   - Gives you a free VPS with up to 4 CPUs and 24 GB RAM — forever
+
+2. **DuckDNS account** — [duckdns.org](https://www.duckdns.org)
+   - Sign in with GitHub or Google
+   - Gives you a free subdomain: `yourname.duckdns.org`
+   - Copy your **token** from the homepage after signing in
+
+3. **API keys** — the setup wizard walks you through each one
+
+### Step 1: Create an Oracle Cloud VM
+
+1. Sign up at [cloud.oracle.com](https://cloud.oracle.com)
 2. Go to **Compute → Instances → Create Instance**
 3. Choose **Always Free Eligible** shape:
    - **ARM (Ampere A1)**: Up to 4 OCPU, 24 GB RAM (recommended)
-   - **AMD (E2.1.Micro)**: 1 OCPU, 1 GB RAM
-4. Choose **Ubuntu 22.04** or **Oracle Linux 9** as the OS
+   - **AMD (E2.1.Micro)**: 1 OCPU, 1 GB RAM (works but tighter)
+4. Choose **Ubuntu 22.04** as the OS
 5. Download or paste your SSH public key
 6. Create the instance and note the **public IP address**
 
-### Open firewall ports
-
-Oracle Cloud has two firewalls: the **VCN Security List** and the **OS firewall**.
-
-**VCN Security List** (Oracle Cloud Console):
-1. Go to Networking → Virtual Cloud Networks → your VCN → Security Lists
+**Open firewall ports** in the Oracle Cloud Console:
+1. Go to **Networking → Virtual Cloud Networks → your VCN → Security Lists**
 2. Add Ingress Rules for TCP ports **80** and **443** from source `0.0.0.0/0`
 
-**OS firewall** (on the VM):
-```bash
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
-sudo netfilter-persistent save
-```
-
-### Install Node.js
+### Step 2: SSH in and run setup
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs git
-```
+ssh ubuntu@YOUR_VPS_IP
 
-### Install Chromium for Puppeteer
-
-```bash
-# Install Chromium for Puppeteer rendering (used to generate carousel images)
-npx puppeteer browsers install chrome
-```
-
-### Clone and set up
-
-```bash
+# Clone and run setup
 git clone https://github.com/YOUR_USERNAME/lcssocialmedia.git
 cd lcssocialmedia
-npm install
-cp .env.example .env
-# Edit .env with your API keys and Cloudflare Access config
-nano .env
+sudo bash scripts/setup.sh
 ```
 
-### Install Caddy (reverse proxy + auto-HTTPS)
+The setup script will:
+- Install Node.js 20, Chromium, and Caddy
+- Walk you through configuring each API key
+- Set up your DuckDNS free domain with auto-HTTPS
+- Add password protection for the dashboard
+- Create a systemd service so the dashboard starts on boot
+- Open firewall ports
+
+### Step 3: Configure GitHub Actions
+
+Go to your repo: **Settings → Secrets and variables → Actions**
+
+Add these two secrets:
+- `DASHBOARD_URL` = `https://yourname.duckdns.org`
+- `API_KEY` = the API key shown during setup
+
+### Step 4: Verify
 
 ```bash
-sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-sudo apt update && sudo apt install caddy
-```
+# Check health endpoint
+curl https://yourname.duckdns.org/health
 
-Create `/etc/caddy/Caddyfile`:
-```
-yourdomain.com {
-    reverse_proxy localhost:3000
-}
-```
+# Visit in browser — you'll be prompted for username/password
+open https://yourname.duckdns.org
 
-```bash
-sudo systemctl enable caddy
-sudo systemctl restart caddy
-```
-
-### Create systemd service for the dashboard
-
-Create `/etc/systemd/system/lcs-dashboard.service`:
-```ini
-[Unit]
-Description=LCS Post Approval Dashboard
-After=network.target
-
-[Service]
-Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/lcssocialmedia
-ExecStart=/usr/bin/node dashboard/server.js
-Restart=on-failure
-RestartSec=5
-EnvironmentFile=/home/ubuntu/lcssocialmedia/.env
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable lcs-dashboard
-sudo systemctl start lcs-dashboard
+# Trigger the GitHub Action manually from the Actions tab to test
 ```
 
 ---
 
-## 2. Cloudflare Setup
+## API Keys Reference
 
-### Add your domain
+| Key | Where to get it | Cost | Expires? |
+|-----|----------------|------|----------|
+| `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Free | No |
+| `LINKEDIN_ACCESS_TOKEN` | [linkedin.com/developers](https://www.linkedin.com/developers/) | Free | ~60 days |
+| `LINKEDIN_ORG_ID` | Your Company Page URL | Free | No |
+| `FB_PAGE_ACCESS_TOKEN` | [developers.facebook.com](https://developers.facebook.com/) | Free | ~60 days |
+| `FB_PAGE_ID` | Facebook Page → About | Free | No |
+| `IG_USER_ID` | Graph API: `GET /{page-id}?fields=instagram_business_account` | Free | No |
+| `IMGBB_API_KEY` | [api.imgbb.com](https://api.imgbb.com/) | Free | No |
+| `API_KEY` | Auto-generated by setup wizard | Free | No |
 
-1. Go to [dash.cloudflare.com](https://dash.cloudflare.com) and add your domain (free plan)
-2. Update your domain's nameservers to the ones Cloudflare provides
-3. Add an **A record** pointing to your Oracle VPS public IP
-   - Name: `@` (or a subdomain like `dash`)
-   - IPv4: your VPS IP
-   - Proxy status: **Proxied** (orange cloud ON)
-
-### Set up Cloudflare Access (Zero Trust)
-
-1. Go to [one.dash.cloudflare.com](https://one.dash.cloudflare.com) → **Access → Applications**
-2. Click **Add an application** → **Self-hosted**
-3. Configure:
-   - **Application name**: LCS Dashboard
-   - **Session duration**: 24 hours (or your preference)
-   - **Application domain**: `yourdomain.com` (or `dash.yourdomain.com`)
-4. Add an **Access Policy**:
-   - **Policy name**: Only Me
-   - **Action**: Allow
-   - **Include rule**: Emails — `your-email@example.com`
-5. Save the application
-6. Copy these values from the application settings:
-   - **Team domain** (shown at the top of Zero Trust dashboard, e.g. `myteam`)
-   - **Application Audience (AUD)** tag (in the application's Overview tab)
-
-### Configure the server
-
-Edit `.env` on your VPS:
+Run the setup wizard at any time to reconfigure:
 ```bash
-CF_ACCESS_ENABLED=true
-CF_ACCESS_TEAM_DOMAIN=myteam
-CF_ACCESS_AUD=abc123def456...
-
-# Random string for GitHub Actions authentication
-API_KEY=your-random-hex-string
-
-# Set these when generating tokens (YYYY-MM-DD format)
-TOKEN_EXPIRY_LINKEDIN=2026-05-20
-TOKEN_EXPIRY_META=2026-05-20
+npm run setup
 ```
-
-Restart the dashboard:
-```bash
-sudo systemctl restart lcs-dashboard
-```
-
----
-
-## 3. Verify
-
-1. Visit `https://yourdomain.com` — you should see the Cloudflare Access login page
-2. Enter your email, verify with the one-time code
-3. You should now see the LCS dashboard
-4. Try accessing from a different email or incognito — should be blocked
-5. Try accessing the VPS IP directly (`http://VPS_IP:3000`) — should get 403 (JWT validation)
 
 ---
 
@@ -176,32 +104,12 @@ sudo systemctl restart lcs-dashboard
 
 LinkedIn and Meta tokens expire after ~60 days. Set calendar reminders.
 
-1. Generate new token (LinkedIn Developer Portal / Meta Graph API Explorer)
+1. Generate a new token (LinkedIn Developer Portal / Meta Graph API Explorer)
 2. SSH into VPS: `ssh ubuntu@your-vps-ip`
-3. Edit .env: `nano /path/to/lcssocialmedia/.env`
-4. Update the token value AND the TOKEN_EXPIRY_* date
+3. Edit .env: `nano ~/lcssocialmedia/.env`
+4. Update the token value AND the `TOKEN_EXPIRY_*` date
 5. Restart: `sudo systemctl restart lcs-dashboard`
-6. Verify: `curl https://your-domain.com/health`
-
----
-
-## GitHub Actions Secrets
-
-Configure in: Repo → Settings → Secrets and variables → Actions:
-
-- `DASHBOARD_URL` — Your dashboard URL (e.g., `https://lcs.yourdomain.com`)
-- `API_KEY` — Same value as API_KEY in your VPS .env file
-
----
-
-## Local Development
-
-For local development, leave `CF_ACCESS_ENABLED` unset or `false` in your `.env`:
-```bash
-CF_ACCESS_ENABLED=false
-npm run dashboard
-# Dashboard runs on http://localhost:3000 with no auth
-```
+6. Verify: `curl https://yourname.duckdns.org/health`
 
 ---
 
@@ -214,7 +122,66 @@ sudo journalctl -u lcs-dashboard -f
 # Restart dashboard
 sudo systemctl restart lcs-dashboard
 
+# Restart Caddy (reverse proxy)
+sudo systemctl restart caddy
+
 # Update code
 cd ~/lcssocialmedia && git pull && npm install
 sudo systemctl restart lcs-dashboard
+
+# Re-run setup wizard
+cd ~/lcssocialmedia && npm run setup
+```
+
+---
+
+## Local Development
+
+For local development, no deployment is needed:
+```bash
+npm run setup          # Configure API keys (one-time)
+npm run dashboard      # Dashboard on http://localhost:3000 (no auth)
+npm test               # Run tests
+```
+
+---
+
+## Advanced: Custom Domain + Cloudflare Access
+
+If you have your own domain and want Cloudflare's Zero Trust authentication instead of password protection:
+
+### Cloudflare Setup
+
+1. Add your domain at [dash.cloudflare.com](https://dash.cloudflare.com) (free plan)
+2. Update your domain's nameservers to Cloudflare's
+3. Add an **A record** pointing to your VPS IP (Proxied — orange cloud ON)
+
+### Cloudflare Access (Zero Trust)
+
+1. Go to [one.dash.cloudflare.com](https://one.dash.cloudflare.com) → **Access → Applications**
+2. Add application → **Self-hosted**
+3. Set application domain to your domain
+4. Add policy: Allow — Emails — `your-email@example.com`
+5. Copy the **Team domain** and **Application Audience (AUD)** tag
+
+### Configure
+
+Edit `.env` on your VPS:
+```bash
+CF_ACCESS_ENABLED=true
+CF_ACCESS_TEAM_DOMAIN=myteam
+CF_ACCESS_AUD=abc123def456...
+```
+
+Update your Caddyfile (`/etc/caddy/Caddyfile`) to remove the `basicauth` block:
+```
+yourdomain.com {
+    reverse_proxy localhost:3000
+}
+```
+
+Restart both services:
+```bash
+sudo systemctl restart lcs-dashboard
+sudo systemctl restart caddy
 ```
