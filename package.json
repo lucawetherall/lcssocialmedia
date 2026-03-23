@@ -10,7 +10,8 @@
     "dashboard": "node dashboard/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "setup": "node scripts/setup-env.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",
