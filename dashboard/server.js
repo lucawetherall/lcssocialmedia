@@ -390,53 +390,75 @@ app.get('/api/config', (req, res) => {
   });
 });
 
-// ── Scheduled post checker (runs every 60 seconds) ──
+// ── Scheduled post publisher (runs every 60 seconds) ──
 
-setInterval(() => {
+let isPublishing = false;
+
+async function publishScheduledPosts() {
+  if (isPublishing) return; // Guard: skip if previous cycle still running
+  isPublishing = true;
   try {
     const duePosts = queries.getDuePosts.all();
+
+    // Process sequentially to avoid rate-limit spikes
     for (const row of duePosts) {
       const post = parsePost(row);
+
+      // Set 'publishing' lock to prevent re-pickup on next interval tick
+      queries.updatePostStatus.run('publishing', post.id);
       console.log(`⏰ Publishing scheduled post: "${post.topic}"`);
 
-      // Fire and forget — publish in background
-      (async () => {
-        try {
-          const postDir = path.join(DATA_DIR, 'posts', String(post.id));
-          const imagePaths = post.slides.map(
-            (_, i) => path.join(postDir, `slide-${String(i + 1).padStart(2, '0')}.png`)
-          );
-          const pdfPath = path.join(postDir, 'carousel.pdf');
+      try {
+        const postDir = path.join(DATA_DIR, 'posts', String(post.id));
+        const imagePaths = post.slides.map(
+          (_, i) => path.join(postDir, `slide-${String(i + 1).padStart(2, '0')}.png`)
+        );
+        const pdfPath = path.join(postDir, 'carousel.pdf');
 
-          const captionFor = (platform) => post[`caption_${platform}`] || post.caption;
+        const captionFor = (platform) => post[`caption_${platform}`] || post.caption;
 
-          const result = await publishToAllPlatforms({
-            pdfPath,
-            imagePaths,
-            captions: {
-              linkedin: captionFor('linkedin'),
-              instagram: captionFor('instagram'),
-              facebook: captionFor('facebook'),
-              default: post.caption,
-            },
-          }, post.platforms);
+        const result = await publishToAllPlatforms({
+          pdfPath,
+          imagePaths,
+          captions: {
+            linkedin: captionFor('linkedin'),
+            instagram: captionFor('instagram'),
+            facebook: captionFor('facebook'),
+            default: post.caption,
+          },
+        }, post.platforms);
 
-          if (result.allSucceeded) {
-            queries.updatePostStatus.run('published', post.id);
-            console.log(`✓ Scheduled post published: "${post.topic}"`);
-          } else {
-            console.error(`✗ Scheduled post partially failed: "${post.topic}" — failed: ${result.failedPlatforms.join(', ')}`);
-            queries.updatePostStatus.run('published', post.id); // Still mark as published for now; error recovery comes in Task 6
-          }
-        } catch (err) {
-          console.error(`✗ Scheduled post failed: "${post.topic}"`, err.message);
+        if (result.allSucceeded) {
+          queries.updatePostStatus.run('published', post.id);
+          queries.clearPostError.run(post.id);
+          console.log(`✓ Scheduled post published: "${post.topic}"`);
+        } else {
+          throw new Error(`Failed platforms: ${result.failedPlatforms.join(', ')}`);
         }
-      })();
+      } catch (err) {
+        const retryCount = (post.retry_count || 0) + 1;
+        const maxRetries = 3;
+
+        if (retryCount >= maxRetries) {
+          queries.updatePostStatus.run('failed', post.id);
+          queries.updatePostError.run(err.message, post.id);
+          console.error(`✗ Post permanently failed after ${maxRetries} retries: "${post.topic}" — ${err.message}`);
+        } else {
+          // Back to scheduled for retry on next tick
+          queries.updatePostStatus.run('scheduled', post.id);
+          queries.updatePostError.run(err.message, post.id);
+          console.warn(`⚠ Post failed (attempt ${retryCount}/${maxRetries}), will retry: "${post.topic}" — ${err.message}`);
+        }
+      }
     }
   } catch (err) {
     console.error('Scheduler error:', err.message);
+  } finally {
+    isPublishing = false;
   }
-}, 60_000);
+}
+
+setInterval(publishScheduledPosts, 60_000);
 
 // ── SPA fallback ──
 app.get('/{*splat}', (req, res) => {
