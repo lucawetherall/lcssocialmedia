@@ -13,9 +13,10 @@ GitHub Actions → API Key Header → /api/auto-generate
 
 ### Prerequisites
 
-1. **Oracle Cloud Always Free account** — [cloud.oracle.com](https://cloud.oracle.com)
-   - Credit card required for verification, but you are never charged
-   - Gives you a free VPS with up to 4 CPUs and 24 GB RAM — forever
+1. **Google Cloud account** — [cloud.google.com](https://cloud.google.com)
+   - Free tier includes 1 e2-micro VM forever (in us-west1, us-central1, or us-east1)
+   - New accounts also get $300 free credit for 90 days
+   - Credit card required for verification
 
 2. **DuckDNS account** — [duckdns.org](https://www.duckdns.org)
    - Sign in with GitHub or Google
@@ -24,25 +25,27 @@ GitHub Actions → API Key Header → /api/auto-generate
 
 3. **API keys** — the setup wizard walks you through each one
 
-### Step 1: Create an Oracle Cloud VM
+### Step 1: Create a Google Cloud VM
 
-1. Sign up at [cloud.oracle.com](https://cloud.oracle.com)
-2. Go to **Compute → Instances → Create Instance**
-3. Choose **Always Free Eligible** shape:
-   - **ARM (Ampere A1)**: Up to 4 OCPU, 24 GB RAM (recommended)
-   - **AMD (E2.1.Micro)**: 1 OCPU, 1 GB RAM (works but tighter)
-4. Choose **Ubuntu 22.04** as the OS
-5. Download or paste your SSH public key
-6. Create the instance and note the **public IP address**
+1. Go to [console.cloud.google.com](https://console.cloud.google.com)
+2. Navigate to **Compute Engine → VM instances → Create Instance**
+3. Configure:
+   - **Name**: `lcs-dashboard`
+   - **Region**: `us-central1` (or `us-west1` / `us-east1` — must be one of these for free tier)
+   - **Machine type**: `e2-micro` (2 vCPU, 1 GB RAM — Always Free)
+   - **Boot disk**: Click **Change** → **Ubuntu 22.04 LTS**, size **30 GB** (free tier allows up to 30GB)
+   - **Firewall**: Check both **Allow HTTP traffic** and **Allow HTTPS traffic**
+4. Click **Create** and wait for the VM to start
+5. Note the **External IP** address shown in the VM list
 
-**Open firewall ports** in the Oracle Cloud Console:
-1. Go to **Networking → Virtual Cloud Networks → your VCN → Security Lists**
-2. Add Ingress Rules for TCP ports **80** and **443** from source `0.0.0.0/0`
+> **Tip**: If you don't see "Allow HTTP/HTTPS traffic" checkboxes, you can add firewall rules after:
+> Go to **VPC network → Firewall → Create Firewall Rule**, allow TCP ports 80 and 443 from `0.0.0.0/0`.
 
 ### Step 2: SSH in and run setup
 
+Click the **SSH** button next to your VM in the Cloud Console (or use gcloud):
 ```bash
-ssh ubuntu@YOUR_VPS_IP
+gcloud compute ssh lcs-dashboard --zone=us-central1-a
 
 # Clone and run setup
 git clone https://github.com/YOUR_USERNAME/lcssocialmedia.git
@@ -52,6 +55,7 @@ sudo bash scripts/setup.sh
 
 The setup script will:
 - Install Node.js 20, Chromium, and Caddy
+- Create a 2GB swap file (needed for Puppeteer on 1GB RAM)
 - Walk you through configuring each API key
 - Set up your DuckDNS free domain with auto-HTTPS
 - Add password protection for the dashboard
@@ -105,7 +109,7 @@ npm run setup
 LinkedIn and Meta tokens expire after ~60 days. Set calendar reminders.
 
 1. Generate a new token (LinkedIn Developer Portal / Meta Graph API Explorer)
-2. SSH into VPS: `ssh ubuntu@your-vps-ip`
+2. SSH into VM: `gcloud compute ssh lcs-dashboard` (or click SSH in Cloud Console)
 3. Edit .env: `nano ~/lcssocialmedia/.env`
 4. Update the token value AND the `TOKEN_EXPIRY_*` date
 5. Restart: `sudo systemctl restart lcs-dashboard`
