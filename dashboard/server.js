@@ -12,7 +12,9 @@ import { renderPostSlides, renderSingleSlide, closeBrowser } from './render-help
 import { generateCarouselContent } from '../content-generator.js';
 import { publishToAllPlatforms } from '../poster.js';
 import { CONFIG } from '../config.js';
-import { cfAccessAuth } from './auth.js';
+import { cfAccessAuth, apiKeyAuth } from './auth.js';
+import { checkTokenExpiry } from '../utils/token-expiry.js';
+import { getNextAvailableSlots } from './scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, 'data');
@@ -20,7 +22,135 @@ const PORT = process.env.DASHBOARD_PORT || 3000;
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
-app.use(cfAccessAuth);
+
+// ── Health endpoint (no auth) ──
+app.get('/health', (req, res) => {
+  try {
+    const lastPublished = db.prepare(
+      "SELECT updated_at FROM posts WHERE status = 'published' ORDER BY updated_at DESC LIMIT 1"
+    ).get();
+    const pendingPosts = db.prepare(
+      "SELECT COUNT(*) as count FROM posts WHERE status IN ('approved', 'scheduled')"
+    ).get();
+    const nextScheduled = db.prepare(
+      "SELECT scheduled_at FROM posts WHERE status = 'scheduled' ORDER BY scheduled_at ASC LIMIT 1"
+    ).get();
+    const failedPosts = db.prepare(
+      "SELECT COUNT(*) as count FROM posts WHERE status = 'failed'"
+    ).get();
+
+    res.json({
+      status: 'ok',
+      uptime: Math.floor(process.uptime()),
+      lastPublished: lastPublished?.updated_at || null,
+      pendingPosts: pendingPosts?.count || 0,
+      nextScheduled: nextScheduled?.scheduled_at || null,
+      failedPosts: failedPosts?.count || 0,
+      tokenWarnings: checkTokenExpiry(),
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: err.message });
+  }
+});
+
+// ── Auto-generate endpoint (API key auth for GitHub Actions) ──
+app.post('/api/auto-generate', apiKeyAuth, async (req, res) => {
+  try {
+    const batchSizeSetting = queries.getSetting.get('batch_size');
+    const batchSize = Math.min(
+      parseInt(req.body?.count) || parseInt(batchSizeSetting?.value) || 5,
+      20
+    );
+
+    // Get available topics (exclude recently used)
+    const recentTopics = queries.getRecentTopics.all().map(r => r.topic);
+    const availableTopics = CONFIG.topics.filter(t => !recentTopics.includes(t));
+    const topicPool = availableTopics.length > 0 ? availableTopics : CONFIG.topics;
+
+    // Get next available schedule slots
+    const scheduledPosts = queries.getPostsByStatus.all('scheduled');
+    const scheduledDates = scheduledPosts.map(p => p.scheduled_at).filter(Boolean);
+
+    const settingsRows = queries.getAllSettings.all();
+    const settings = {};
+    for (const row of settingsRows) {
+      try { settings[row.key] = JSON.parse(row.value); } catch { settings[row.key] = row.value; }
+    }
+
+    const slots = getNextAvailableSlots(batchSize, {
+      recurringDays: settings.recurring_days || ['monday', 'thursday'],
+      recurringTime: settings.recurring_time || '09:00',
+      existingScheduledDates: scheduledDates,
+    });
+
+    const results = [];
+
+    for (let i = 0; i < batchSize; i++) {
+      const topic = topicPool[Math.floor(Math.random() * topicPool.length)];
+      const template = CONFIG.templates[Math.floor(Math.random() * CONFIG.templates.length)];
+
+      try {
+        const content = await generateCarouselContent(topic, template);
+
+        const result = queries.createPost.run({
+          topic: content.topic,
+          template,
+          caption: content.caption,
+          slides: JSON.stringify(content.slides),
+          status: 'approved',
+          platforms: JSON.stringify(['linkedin', 'instagram', 'facebook']),
+        });
+
+        const postId = result.lastInsertRowid;
+        await renderPostSlides(postId, content.slides, template);
+
+        // Mark as rendered
+        const post = queries.getPost.get(postId);
+        if (post) {
+          const parsed = parsePost(post);
+          queries.updatePost.run({
+            ...parsed,
+            slides: JSON.stringify(parsed.slides),
+            platforms: JSON.stringify(parsed.platforms),
+            rendered: 1,
+          });
+        }
+
+        // Schedule
+        if (slots[i]) {
+          queries.updatePostSchedule.run(slots[i], postId);
+        }
+
+        // Record topic usage
+        queries.recordTopicUsage.run(content.topic);
+
+        results.push({
+          id: postId,
+          topic: content.topic,
+          template,
+          status: slots[i] ? 'scheduled' : 'approved',
+          scheduled_at: slots[i] || null,
+        });
+
+        console.log(`✓ Auto-generated post ${i + 1}/${batchSize}: "${content.topic}" → ${slots[i] || 'unscheduled'}`);
+      } catch (err) {
+        console.error(`✗ Failed to generate post ${i + 1}:`, err.message);
+        results.push({ error: err.message });
+      }
+    }
+
+    res.json({ generated: results.length, scheduled: slots.slice(0, results.length), results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Apply CF Access to all /api/* routes EXCEPT auto-generate (uses API key auth instead)
+app.use('/api', (req, res, next) => {
+  if (req.path === '/auto-generate') return next();
+  cfAccessAuth(req, res, next);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve rendered slide images
@@ -398,6 +528,10 @@ async function publishScheduledPosts() {
   if (isPublishing) return; // Guard: skip if previous cycle still running
   isPublishing = true;
   try {
+    // Check if publishing is paused
+    const pausedSetting = queries.getSetting.get('paused');
+    if (pausedSetting?.value === 'true') return;
+
     const duePosts = queries.getDuePosts.all();
 
     // Process sequentially to avoid rate-limit spikes
