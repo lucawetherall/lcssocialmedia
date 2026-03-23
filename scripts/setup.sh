@@ -57,10 +57,35 @@ fi
 TOTAL_RAM_MB=$(free -m | awk '/^Mem:/{print $2}')
 if [ "$TOTAL_RAM_MB" -lt 512 ]; then
   warn "Only ${TOTAL_RAM_MB}MB RAM detected. Puppeteer needs at least 512MB."
-  warn "Consider using a larger instance (Oracle ARM A1: up to 24GB free)."
+  warn "A swap file will be created to compensate."
 fi
 
 info "Running as root. App user: $APP_USER ($APP_HOME)"
+
+# ══════════════════════════════════════════════════
+# 1b. Swap file (needed for e2-micro / 1GB RAM VMs)
+# ══════════════════════════════════════════════════
+
+SWAP_SIZE_MB=2048
+
+if [ "$TOTAL_RAM_MB" -lt 2048 ]; then
+  if swapon --show | grep -q "/swapfile"; then
+    ok "Swap file already active."
+  else
+    info "Creating ${SWAP_SIZE_MB}MB swap file (Puppeteer needs extra memory)..."
+    if [ ! -f /swapfile ]; then
+      dd if=/dev/zero of=/swapfile bs=1M count=$SWAP_SIZE_MB status=none
+      chmod 600 /swapfile
+      mkswap /swapfile >/dev/null
+    fi
+    swapon /swapfile
+    # Persist across reboots
+    if ! grep -q "/swapfile" /etc/fstab; then
+      echo "/swapfile none swap sw 0 0" >> /etc/fstab
+    fi
+    ok "Swap file active (${SWAP_SIZE_MB}MB)."
+  fi
+fi
 
 # ══════════════════════════════════════════════════
 # 2. System dependencies
@@ -398,10 +423,11 @@ echo "    cd $APP_DIR && git pull && npm install   # Update code"
 echo ""
 
 if [[ "${USE_DUCKDNS,,}" != "n" ]]; then
-  echo -e "  ${YELLOW}IMPORTANT — Oracle Cloud VCN Security List:${NC}"
-  echo "    You must also open ports 80 and 443 in the Oracle Cloud Console:"
-  echo "    Networking → Virtual Cloud Networks → your VCN → Security Lists"
-  echo "    Add Ingress Rules for TCP 80 and 443 from 0.0.0.0/0"
+  echo -e "  ${YELLOW}IMPORTANT — Google Cloud Firewall:${NC}"
+  echo "    If you did NOT check 'Allow HTTP/HTTPS traffic' when creating the VM,"
+  echo "    open ports in the Cloud Console:"
+  echo "    VPC network → Firewall → Create Firewall Rule"
+  echo "    Allow TCP 80 and 443 from 0.0.0.0/0"
   echo ""
 fi
 
