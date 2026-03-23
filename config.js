@@ -70,7 +70,6 @@ export const CONFIG = {
   api: {
     linkedInVersion: '202602',
     graphApiVersion: 'v25.0',
-    tikTokApiVersion: 'v2',
   },
 
   // Platform-specific settings
@@ -86,10 +85,6 @@ export const CONFIG = {
       maxImages: 10,
     },
     facebook: {
-      enabled: true,
-      format: 'png',
-    },
-    tiktok: {
       enabled: true,
       format: 'png',
     },

@@ -5,7 +5,7 @@
 import 'dotenv/config';
 import { generateCarouselContent } from './content-generator.js';
 import { renderCarousel } from './renderer.js';
-import { postToLinkedIn, postToInstagram, postToFacebook, postToTikTok } from './poster.js';
+import { postToLinkedIn, postToInstagram, postToFacebook } from './poster.js';
 import { CONFIG } from './config.js';
 
 // ── Parse CLI flags ──
@@ -84,9 +84,6 @@ async function main() {
 
   // Facebook: multi-image post
   await postToFacebook(imagePaths, caption);
-
-  // TikTok: photo post
-  await postToTikTok(imagePaths, caption);
 
   console.log('└──────────────────────────────────────────────');
   console.log('');

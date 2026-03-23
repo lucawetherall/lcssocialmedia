@@ -179,7 +179,6 @@
     $('#edit-caption-linkedin').value = currentPost.caption_linkedin || '';
     $('#edit-caption-instagram').value = currentPost.caption_instagram || '';
     $('#edit-caption-facebook').value = currentPost.caption_facebook || '';
-    $('#edit-caption-tiktok').value = currentPost.caption_tiktok || '';
 
     // Platforms
     $$('#platform-toggles input').forEach((cb) => {
@@ -448,7 +447,6 @@
           caption_linkedin: $('#edit-caption-linkedin').value || null,
           caption_instagram: $('#edit-caption-instagram').value || null,
           caption_facebook: $('#edit-caption-facebook').value || null,
-          caption_tiktok: $('#edit-caption-tiktok').value || null,
           platforms,
         },
       });

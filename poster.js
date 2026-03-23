@@ -1,5 +1,5 @@
 // scripts/poster.js
-// Posts carousel content to LinkedIn, Instagram, Facebook, and TikTok
+// Posts carousel content to LinkedIn, Instagram, and Facebook
 
 import fs from 'fs/promises';
 import fetch from 'node-fetch';
@@ -284,59 +284,5 @@ export async function postToFacebook(imagePaths, caption) {
     }
   } catch (err) {
     console.error(`  ✗ Facebook error: ${err.message}`);
-  }
-}
-
-// ─────────────────────────────────────────────
-// TIKTOK (photo post via Content Posting API)
-// ─────────────────────────────────────────────
-
-export async function postToTikTok(imagePaths, caption) {
-  if (!CONFIG.platforms.tiktok.enabled) return console.log('⊘ TikTok disabled, skipping');
-
-  const token = process.env.TIKTOK_ACCESS_TOKEN;
-  if (!token) return console.log('⊘ TikTok credentials not set, skipping');
-
-  console.log('⎔ Posting to TikTok...');
-
-  try {
-    // Step 1: Initialize photo post
-    const initRes = await fetch(`https://open.tiktokapis.com/${CONFIG.api.tikTokApiVersion}/post/publish/content/init/`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        post_info: {
-          title: caption.substring(0, 150), // TikTok title limit
-          privacy_level: 'PUBLIC_TO_EVERYONE',
-          disable_duet: false,
-          disable_comment: false,
-          disable_stitch: false,
-        },
-        source_info: {
-          source: 'PULL_FROM_URL',
-          photo_cover_index: 0,
-          photo_images: await Promise.all(
-            imagePaths.map(async (p) => await uploadToImgbb(p))
-          ),
-        },
-        media_type: 'PHOTO',
-      }),
-    });
-
-    const initData = await initRes.json();
-
-    if (initData.data?.publish_id) {
-      console.log(`  ✓ TikTok: Initiated (publish ID: ${initData.data.publish_id})`);
-      // TikTok processes asynchronously — check status later if needed
-    } else {
-      console.error('  ✗ TikTok init failed:', initData);
-      console.log('  ℹ TikTok photo posts require approved developer access.');
-      console.log('    Apply at: https://developers.tiktok.com/');
-    }
-  } catch (err) {
-    console.error(`  ✗ TikTok error: ${err.message}`);
   }
 }

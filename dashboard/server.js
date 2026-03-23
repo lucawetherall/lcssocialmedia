@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 import db, { queries } from './db.js';
 import { renderPostSlides, renderSingleSlide, closeBrowser } from './render-helper.js';
 import { generateCarouselContent } from '../content-generator.js';
-import { postToLinkedIn, postToInstagram, postToFacebook, postToTikTok } from '../poster.js';
+import { postToLinkedIn, postToInstagram, postToFacebook } from '../poster.js';
 import { CONFIG } from '../config.js';
 import { cfAccessAuth } from './auth.js';
 
@@ -77,7 +77,6 @@ app.put('/api/posts/:id', async (req, res) => {
       caption_linkedin: req.body.caption_linkedin ?? existing.caption_linkedin,
       caption_instagram: req.body.caption_instagram ?? existing.caption_instagram,
       caption_facebook: req.body.caption_facebook ?? existing.caption_facebook,
-      caption_tiktok: req.body.caption_tiktok ?? existing.caption_tiktok,
       slides: JSON.stringify(req.body.slides ?? existing.slides),
       status: req.body.status ?? existing.status,
       scheduled_at: req.body.scheduled_at ?? existing.scheduled_at,
@@ -208,7 +207,7 @@ app.post('/api/generate', async (req, res) => {
           caption: content.caption,
           slides: JSON.stringify(content.slides),
           status: 'draft',
-          platforms: JSON.stringify(['linkedin', 'instagram', 'facebook', 'tiktok']),
+          platforms: JSON.stringify(['linkedin', 'instagram', 'facebook']),
         });
 
         const postId = result.lastInsertRowid;
@@ -355,15 +354,6 @@ app.post('/api/posts/:id/publish', async (req, res) => {
       }
     }
 
-    if (platforms.includes('tiktok')) {
-      try {
-        await postToTikTok(imagePaths, captionFor('tiktok'));
-        results.tiktok = 'success';
-      } catch (e) {
-        results.tiktok = e.message;
-      }
-    }
-
     queries.updatePostStatus.run('published', post.id);
     res.json({ status: 'published', results });
   } catch (err) {
@@ -446,7 +436,6 @@ setInterval(() => {
           if (post.platforms.includes('linkedin')) await postToLinkedIn(pdfPath, captionFor('linkedin'));
           if (post.platforms.includes('instagram')) await postToInstagram(imagePaths, captionFor('instagram'));
           if (post.platforms.includes('facebook')) await postToFacebook(imagePaths, captionFor('facebook'));
-          if (post.platforms.includes('tiktok')) await postToTikTok(imagePaths, captionFor('tiktok'));
 
           queries.updatePostStatus.run('published', post.id);
           console.log(`✓ Scheduled post published: "${post.topic}"`);
