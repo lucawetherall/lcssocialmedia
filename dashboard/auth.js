@@ -19,6 +19,18 @@ function getJWKS() {
   return jwks;
 }
 
+export function apiKeyAuth(req, res, next) {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'API_KEY not configured on server' });
+  }
+  const provided = req.headers['x-api-key'];
+  if (!provided || provided !== apiKey) {
+    return res.status(401).json({ error: 'Invalid or missing API key' });
+  }
+  next();
+}
+
 export async function cfAccessAuth(req, res, next) {
   if (!CF_ACCESS_ENABLED) return next();
 
