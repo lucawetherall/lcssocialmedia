@@ -10,9 +10,11 @@ import { fileURLToPath } from 'url';
 import db, { queries } from './db.js';
 import { renderPostSlides, renderSingleSlide, closeBrowser } from './render-helper.js';
 import { generateCarouselContent } from '../content-generator.js';
-import { postToLinkedIn, postToInstagram, postToFacebook, postToTikTok } from '../poster.js';
+import { publishToAllPlatforms } from '../poster.js';
 import { CONFIG } from '../config.js';
-import { cfAccessAuth } from './auth.js';
+import { cfAccessAuth, apiKeyAuth } from './auth.js';
+import { checkTokenExpiry } from '../utils/token-expiry.js';
+import { getNextAvailableSlots } from './scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, 'data');
@@ -20,7 +22,135 @@ const PORT = process.env.DASHBOARD_PORT || 3000;
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
-app.use(cfAccessAuth);
+
+// ── Health endpoint (no auth) ──
+app.get('/health', (req, res) => {
+  try {
+    const lastPublished = db.prepare(
+      "SELECT updated_at FROM posts WHERE status = 'published' ORDER BY updated_at DESC LIMIT 1"
+    ).get();
+    const pendingPosts = db.prepare(
+      "SELECT COUNT(*) as count FROM posts WHERE status IN ('approved', 'scheduled')"
+    ).get();
+    const nextScheduled = db.prepare(
+      "SELECT scheduled_at FROM posts WHERE status = 'scheduled' ORDER BY scheduled_at ASC LIMIT 1"
+    ).get();
+    const failedPosts = db.prepare(
+      "SELECT COUNT(*) as count FROM posts WHERE status = 'failed'"
+    ).get();
+
+    res.json({
+      status: 'ok',
+      uptime: Math.floor(process.uptime()),
+      lastPublished: lastPublished?.updated_at || null,
+      pendingPosts: pendingPosts?.count || 0,
+      nextScheduled: nextScheduled?.scheduled_at || null,
+      failedPosts: failedPosts?.count || 0,
+      tokenWarnings: checkTokenExpiry(),
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: err.message });
+  }
+});
+
+// ── Auto-generate endpoint (API key auth for GitHub Actions) ──
+app.post('/api/auto-generate', apiKeyAuth, async (req, res) => {
+  try {
+    const batchSizeSetting = queries.getSetting.get('batch_size');
+    const batchSize = Math.min(
+      parseInt(req.body?.count) || parseInt(batchSizeSetting?.value) || 5,
+      20
+    );
+
+    // Get available topics (exclude recently used)
+    const recentTopics = queries.getRecentTopics.all().map(r => r.topic);
+    const availableTopics = CONFIG.topics.filter(t => !recentTopics.includes(t));
+    const topicPool = availableTopics.length > 0 ? availableTopics : CONFIG.topics;
+
+    // Get next available schedule slots
+    const scheduledPosts = queries.getPostsByStatus.all('scheduled');
+    const scheduledDates = scheduledPosts.map(p => p.scheduled_at).filter(Boolean);
+
+    const settingsRows = queries.getAllSettings.all();
+    const settings = {};
+    for (const row of settingsRows) {
+      try { settings[row.key] = JSON.parse(row.value); } catch { settings[row.key] = row.value; }
+    }
+
+    const slots = getNextAvailableSlots(batchSize, {
+      recurringDays: settings.recurring_days || ['monday', 'thursday'],
+      recurringTime: settings.recurring_time || '09:00',
+      existingScheduledDates: scheduledDates,
+    });
+
+    const results = [];
+
+    for (let i = 0; i < batchSize; i++) {
+      const topic = topicPool[Math.floor(Math.random() * topicPool.length)];
+      const template = CONFIG.templates[Math.floor(Math.random() * CONFIG.templates.length)];
+
+      try {
+        const content = await generateCarouselContent(topic, template);
+
+        const result = queries.createPost.run({
+          topic: content.topic,
+          template,
+          caption: content.caption,
+          slides: JSON.stringify(content.slides),
+          status: 'approved',
+          platforms: JSON.stringify(['linkedin', 'instagram', 'facebook']),
+        });
+
+        const postId = result.lastInsertRowid;
+        await renderPostSlides(postId, content.slides, template);
+
+        // Mark as rendered
+        const post = queries.getPost.get(postId);
+        if (post) {
+          const parsed = parsePost(post);
+          queries.updatePost.run({
+            ...parsed,
+            slides: JSON.stringify(parsed.slides),
+            platforms: JSON.stringify(parsed.platforms),
+            rendered: 1,
+          });
+        }
+
+        // Schedule
+        if (slots[i]) {
+          queries.updatePostSchedule.run(slots[i], postId);
+        }
+
+        // Record topic usage
+        queries.recordTopicUsage.run(content.topic);
+
+        results.push({
+          id: postId,
+          topic: content.topic,
+          template,
+          status: slots[i] ? 'scheduled' : 'approved',
+          scheduled_at: slots[i] || null,
+        });
+
+        console.log(`✓ Auto-generated post ${i + 1}/${batchSize}: "${content.topic}" → ${slots[i] || 'unscheduled'}`);
+      } catch (err) {
+        console.error(`✗ Failed to generate post ${i + 1}:`, err.message);
+        results.push({ error: err.message });
+      }
+    }
+
+    res.json({ generated: results.length, scheduled: slots.slice(0, results.length), results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Apply CF Access to all /api/* routes EXCEPT auto-generate (uses API key auth instead)
+app.use('/api', (req, res, next) => {
+  if (req.path === '/auto-generate') return next();
+  cfAccessAuth(req, res, next);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve rendered slide images
@@ -77,7 +207,6 @@ app.put('/api/posts/:id', async (req, res) => {
       caption_linkedin: req.body.caption_linkedin ?? existing.caption_linkedin,
       caption_instagram: req.body.caption_instagram ?? existing.caption_instagram,
       caption_facebook: req.body.caption_facebook ?? existing.caption_facebook,
-      caption_tiktok: req.body.caption_tiktok ?? existing.caption_tiktok,
       slides: JSON.stringify(req.body.slides ?? existing.slides),
       status: req.body.status ?? existing.status,
       scheduled_at: req.body.scheduled_at ?? existing.scheduled_at,
@@ -208,7 +337,7 @@ app.post('/api/generate', async (req, res) => {
           caption: content.caption,
           slides: JSON.stringify(content.slides),
           status: 'draft',
-          platforms: JSON.stringify(['linkedin', 'instagram', 'facebook', 'tiktok']),
+          platforms: JSON.stringify(['linkedin', 'instagram', 'facebook']),
         });
 
         const postId = result.lastInsertRowid;
@@ -319,53 +448,21 @@ app.post('/api/posts/:id/publish', async (req, res) => {
     );
     const pdfPath = path.join(postDir, 'carousel.pdf');
 
-    const platforms = post.platforms;
-    const results = {};
+    const captionFor = (platform) => post[`caption_${platform}`] || post.caption;
 
-    // Use platform-specific captions or fall back to the main caption
-    const captionFor = (platform) => {
-      const key = `caption_${platform}`;
-      return post[key] || post.caption;
-    };
-
-    if (platforms.includes('linkedin')) {
-      try {
-        await postToLinkedIn(pdfPath, captionFor('linkedin'));
-        results.linkedin = 'success';
-      } catch (e) {
-        results.linkedin = e.message;
-      }
-    }
-
-    if (platforms.includes('instagram')) {
-      try {
-        await postToInstagram(imagePaths, captionFor('instagram'));
-        results.instagram = 'success';
-      } catch (e) {
-        results.instagram = e.message;
-      }
-    }
-
-    if (platforms.includes('facebook')) {
-      try {
-        await postToFacebook(imagePaths, captionFor('facebook'));
-        results.facebook = 'success';
-      } catch (e) {
-        results.facebook = e.message;
-      }
-    }
-
-    if (platforms.includes('tiktok')) {
-      try {
-        await postToTikTok(imagePaths, captionFor('tiktok'));
-        results.tiktok = 'success';
-      } catch (e) {
-        results.tiktok = e.message;
-      }
-    }
+    const publishResult = await publishToAllPlatforms({
+      pdfPath,
+      imagePaths,
+      captions: {
+        linkedin: captionFor('linkedin'),
+        instagram: captionFor('instagram'),
+        facebook: captionFor('facebook'),
+        default: post.caption,
+      },
+    }, post.platforms);
 
     queries.updatePostStatus.run('published', post.id);
-    res.json({ status: 'published', results });
+    res.json({ status: 'published', results: publishResult.results });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -423,42 +520,79 @@ app.get('/api/config', (req, res) => {
   });
 });
 
-// ── Scheduled post checker (runs every 60 seconds) ──
+// ── Scheduled post publisher (runs every 60 seconds) ──
 
-setInterval(() => {
+let isPublishing = false;
+
+async function publishScheduledPosts() {
+  if (isPublishing) return; // Guard: skip if previous cycle still running
+  isPublishing = true;
   try {
+    // Check if publishing is paused
+    const pausedSetting = queries.getSetting.get('paused');
+    if (pausedSetting?.value === 'true') return;
+
     const duePosts = queries.getDuePosts.all();
+
+    // Process sequentially to avoid rate-limit spikes
     for (const row of duePosts) {
       const post = parsePost(row);
+
+      // Set 'publishing' lock to prevent re-pickup on next interval tick
+      queries.updatePostStatus.run('publishing', post.id);
       console.log(`⏰ Publishing scheduled post: "${post.topic}"`);
 
-      // Fire and forget — publish in background
-      (async () => {
-        try {
-          const postDir = path.join(DATA_DIR, 'posts', String(post.id));
-          const imagePaths = post.slides.map(
-            (_, i) => path.join(postDir, `slide-${String(i + 1).padStart(2, '0')}.png`)
-          );
-          const pdfPath = path.join(postDir, 'carousel.pdf');
+      try {
+        const postDir = path.join(DATA_DIR, 'posts', String(post.id));
+        const imagePaths = post.slides.map(
+          (_, i) => path.join(postDir, `slide-${String(i + 1).padStart(2, '0')}.png`)
+        );
+        const pdfPath = path.join(postDir, 'carousel.pdf');
 
-          const captionFor = (platform) => post[`caption_${platform}`] || post.caption;
+        const captionFor = (platform) => post[`caption_${platform}`] || post.caption;
 
-          if (post.platforms.includes('linkedin')) await postToLinkedIn(pdfPath, captionFor('linkedin'));
-          if (post.platforms.includes('instagram')) await postToInstagram(imagePaths, captionFor('instagram'));
-          if (post.platforms.includes('facebook')) await postToFacebook(imagePaths, captionFor('facebook'));
-          if (post.platforms.includes('tiktok')) await postToTikTok(imagePaths, captionFor('tiktok'));
+        const result = await publishToAllPlatforms({
+          pdfPath,
+          imagePaths,
+          captions: {
+            linkedin: captionFor('linkedin'),
+            instagram: captionFor('instagram'),
+            facebook: captionFor('facebook'),
+            default: post.caption,
+          },
+        }, post.platforms);
 
+        if (result.allSucceeded) {
           queries.updatePostStatus.run('published', post.id);
+          queries.clearPostError.run(post.id);
           console.log(`✓ Scheduled post published: "${post.topic}"`);
-        } catch (err) {
-          console.error(`✗ Scheduled post failed: "${post.topic}"`, err.message);
+        } else {
+          throw new Error(`Failed platforms: ${result.failedPlatforms.join(', ')}`);
         }
-      })();
+      } catch (err) {
+        const retryCount = (post.retry_count || 0) + 1;
+        const maxRetries = 3;
+
+        if (retryCount >= maxRetries) {
+          queries.updatePostStatus.run('failed', post.id);
+          queries.updatePostError.run(err.message, post.id);
+          console.error(`✗ Post permanently failed after ${maxRetries} retries: "${post.topic}" — ${err.message}`);
+        } else {
+          // Back to scheduled for retry on next tick
+          queries.updatePostStatus.run('scheduled', post.id);
+          queries.updatePostError.run(err.message, post.id);
+          console.warn(`⚠ Post failed (attempt ${retryCount}/${maxRetries}), will retry: "${post.topic}" — ${err.message}`);
+        }
+      }
     }
   } catch (err) {
     console.error('Scheduler error:', err.message);
+  } finally {
+    isPublishing = false;
   }
-}, 60_000);
+}
+
+setInterval(publishScheduledPosts, 60_000);
 
 // ── SPA fallback ──
 app.get('/{*splat}', (req, res) => {

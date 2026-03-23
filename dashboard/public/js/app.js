@@ -32,6 +32,12 @@
     await loadConfig();
     await loadPosts();
     await loadSettings();
+    // Initialize pause toggle
+    const pauseSetting = await api('/api/settings');
+    const pauseCheckbox = document.querySelector('#pause-all');
+    if (pauseCheckbox) {
+      pauseCheckbox.checked = pauseSetting.paused === true;
+    }
     bindEvents();
   }
 
@@ -136,7 +142,7 @@
   }
 
   function renderStats() {
-    const counts = { draft: 0, approved: 0, scheduled: 0, published: 0, rejected: 0 };
+    const counts = { draft: 0, approved: 0, scheduled: 0, publishing: 0, published: 0, failed: 0, rejected: 0 };
     // Count from all posts (not just filtered)
     posts.forEach((p) => {
       if (counts[p.status] !== undefined) counts[p.status]++;
@@ -175,11 +181,27 @@
     badge.textContent = currentPost.status;
     badge.className = `status-badge status-${currentPost.status}`;
 
+    // Show error for failed posts
+    const errorDisplay = document.querySelector('#post-error');
+    if (errorDisplay) {
+      if (currentPost.status === 'failed' && currentPost.last_error) {
+        errorDisplay.textContent = `Error: ${currentPost.last_error}`;
+        errorDisplay.style.display = '';
+      } else {
+        errorDisplay.style.display = 'none';
+      }
+    }
+
+    // Show/hide retry button
+    const retryBtn = document.querySelector('#btn-retry');
+    if (retryBtn) {
+      retryBtn.style.display = currentPost.status === 'failed' ? '' : 'none';
+    }
+
     $('#edit-caption').value = currentPost.caption || '';
     $('#edit-caption-linkedin').value = currentPost.caption_linkedin || '';
     $('#edit-caption-instagram').value = currentPost.caption_instagram || '';
     $('#edit-caption-facebook').value = currentPost.caption_facebook || '';
-    $('#edit-caption-tiktok').value = currentPost.caption_tiktok || '';
 
     // Platforms
     $$('#platform-toggles input').forEach((cb) => {
@@ -323,6 +345,44 @@
     $('#btn-delete').addEventListener('click', deletePost);
     $('#btn-schedule').addEventListener('click', schedulePost);
 
+    // Pause toggle
+    const pauseToggle = document.querySelector('#pause-all');
+    if (pauseToggle) {
+      pauseToggle.addEventListener('change', async (e) => {
+        try {
+          await api('/api/settings', {
+            method: 'PUT',
+            body: { paused: e.target.checked },
+          });
+          toast(e.target.checked ? 'Auto-publishing paused' : 'Auto-publishing resumed');
+        } catch (err) {
+          toast(err.message, 'error');
+        }
+      });
+    }
+
+    // Retry failed post
+    const retryBtnEl = document.querySelector('#btn-retry');
+    if (retryBtnEl) {
+      retryBtnEl.addEventListener('click', async () => {
+        if (!currentPost) return;
+        try {
+          // Reset retry count and reschedule for immediate retry
+          currentPost = await api(`/api/posts/${currentPost.id}`, {
+            method: 'PUT',
+            body: {
+              status: 'scheduled',
+              scheduled_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+            },
+          });
+          renderModal();
+          toast('Post queued for retry');
+        } catch (err) {
+          toast(err.message, 'error');
+        }
+      });
+    }
+
     // Keyboard nav
     document.addEventListener('keydown', (e) => {
       if (!modalOverlay.classList.contains('visible')) return;
@@ -448,7 +508,6 @@
           caption_linkedin: $('#edit-caption-linkedin').value || null,
           caption_instagram: $('#edit-caption-instagram').value || null,
           caption_facebook: $('#edit-caption-facebook').value || null,
-          caption_tiktok: $('#edit-caption-tiktok').value || null,
           platforms,
         },
       });

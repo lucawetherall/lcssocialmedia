@@ -5,7 +5,7 @@
 import 'dotenv/config';
 import { generateCarouselContent } from './content-generator.js';
 import { renderCarousel } from './renderer.js';
-import { postToLinkedIn, postToInstagram, postToFacebook, postToTikTok } from './poster.js';
+import { publishToAllPlatforms } from './poster.js';
 import { CONFIG } from './config.js';
 
 // ── Parse CLI flags ──
@@ -76,21 +76,28 @@ async function main() {
 
   const caption = content.caption;
 
-  // LinkedIn: upload PDF
-  await postToLinkedIn(pdfPath, caption);
+  const result = await publishToAllPlatforms({
+    pdfPath,
+    imagePaths: imagePaths,
+    captions: { default: caption },
+  }, ['linkedin', 'instagram', 'facebook']);
 
-  // Instagram: upload carousel images
-  await postToInstagram(imagePaths, caption);
-
-  // Facebook: multi-image post
-  await postToFacebook(imagePaths, caption);
-
-  // TikTok: photo post
-  await postToTikTok(imagePaths, caption);
+  for (const r of result.results) {
+    if (r.success) {
+      console.log(`  ✓ ${r.platform}: Posted successfully`);
+    } else {
+      console.error(`  ✗ ${r.platform}: ${r.error}`);
+    }
+  }
 
   console.log('└──────────────────────────────────────────────');
   console.log('');
-  console.log('✓ Pipeline complete');
+  if (result.allSucceeded) {
+    console.log('✓ Pipeline complete — all platforms published');
+  } else {
+    console.log(`⚠ Pipeline complete — failed: ${result.failedPlatforms.join(', ')}`);
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {

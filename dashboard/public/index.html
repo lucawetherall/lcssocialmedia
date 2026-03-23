@@ -34,9 +34,15 @@
         <button class="filter-btn" data-status="approved">Approved</button>
         <button class="filter-btn" data-status="scheduled">Scheduled</button>
         <button class="filter-btn" data-status="published">Published</button>
+        <button class="filter-btn" data-status="failed">Failed</button>
         <button class="filter-btn" data-status="rejected">Rejected</button>
       </nav>
       <div class="sidebar-stats" id="sidebar-stats"></div>
+      <div class="pause-toggle" style="padding: 12px 16px; border-bottom: 1px solid var(--border);">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;">
+          <input type="checkbox" id="pause-all"> Pause auto-publishing
+        </label>
+      </div>
     </aside>
 
     <!-- ── Main Content ── -->
@@ -89,6 +95,8 @@
             <span class="status-badge" id="edit-status-badge"></span>
           </div>
 
+          <div id="post-error" class="post-error" style="display:none; background: #fee; color: #c00; padding: 8px 12px; border-radius: 4px; margin: 8px 0; font-size: 13px;"></div>
+
           <!-- Slide Editing -->
           <div class="edit-section">
             <div class="edit-section-header">
@@ -134,10 +142,6 @@
               <label class="edit-sublabel">Facebook</label>
               <textarea class="edit-textarea" id="edit-caption-facebook" rows="2" placeholder="Leave empty to use shared caption"></textarea>
             </div>
-            <div class="edit-section">
-              <label class="edit-sublabel">TikTok</label>
-              <textarea class="edit-textarea" id="edit-caption-tiktok" rows="2" placeholder="Leave empty to use shared caption"></textarea>
-            </div>
           </details>
 
           <!-- Platforms -->
@@ -147,7 +151,6 @@
               <label class="toggle-label"><input type="checkbox" value="linkedin" checked> LinkedIn</label>
               <label class="toggle-label"><input type="checkbox" value="instagram" checked> Instagram</label>
               <label class="toggle-label"><input type="checkbox" value="facebook" checked> Facebook</label>
-              <label class="toggle-label"><input type="checkbox" value="tiktok" checked> TikTok</label>
             </div>
           </div>
 
@@ -163,6 +166,7 @@
             <button class="btn btn-gold" id="btn-approve">Approve</button>
             <button class="btn btn-outline" id="btn-save-post">Save Changes</button>
             <button class="btn btn-publish" id="btn-publish">Publish Now</button>
+            <button id="btn-retry" class="btn btn-warning" style="display:none">Retry</button>
             <button class="btn btn-reject" id="btn-reject">Reject</button>
             <button class="btn btn-danger" id="btn-delete">Delete</button>
           </div>

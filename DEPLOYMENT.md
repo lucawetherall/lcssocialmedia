@@ -43,6 +43,13 @@ curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs git
 ```
 
+### Install Chromium for Puppeteer
+
+```bash
+# Install Chromium for Puppeteer rendering (used to generate carousel images)
+npx puppeteer browsers install chrome
+```
+
 ### Clone and set up
 
 ```bash
@@ -139,6 +146,13 @@ Edit `.env` on your VPS:
 CF_ACCESS_ENABLED=true
 CF_ACCESS_TEAM_DOMAIN=myteam
 CF_ACCESS_AUD=abc123def456...
+
+# Random string for GitHub Actions authentication
+API_KEY=your-random-hex-string
+
+# Set these when generating tokens (YYYY-MM-DD format)
+TOKEN_EXPIRY_LINKEDIN=2026-05-20
+TOKEN_EXPIRY_META=2026-05-20
 ```
 
 Restart the dashboard:
@@ -155,6 +169,28 @@ sudo systemctl restart lcs-dashboard
 3. You should now see the LCS dashboard
 4. Try accessing from a different email or incognito — should be blocked
 5. Try accessing the VPS IP directly (`http://VPS_IP:3000`) — should get 403 (JWT validation)
+
+---
+
+## Token Rotation (every ~55 days)
+
+LinkedIn and Meta tokens expire after ~60 days. Set calendar reminders.
+
+1. Generate new token (LinkedIn Developer Portal / Meta Graph API Explorer)
+2. SSH into VPS: `ssh ubuntu@your-vps-ip`
+3. Edit .env: `nano /path/to/lcssocialmedia/.env`
+4. Update the token value AND the TOKEN_EXPIRY_* date
+5. Restart: `sudo systemctl restart lcs-dashboard`
+6. Verify: `curl https://your-domain.com/health`
+
+---
+
+## GitHub Actions Secrets
+
+Configure in: Repo → Settings → Secrets and variables → Actions:
+
+- `DASHBOARD_URL` — Your dashboard URL (e.g., `https://lcs.yourdomain.com`)
+- `API_KEY` — Same value as API_KEY in your VPS .env file
 
 ---
 
