@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 import db, { queries } from './db.js';
 import { renderPostSlides, renderSingleSlide, closeBrowser } from './render-helper.js';
 import { generateCarouselContent } from '../content-generator.js';
-import { postToLinkedIn, postToInstagram, postToFacebook } from '../poster.js';
+import { publishToAllPlatforms } from '../poster.js';
 import { CONFIG } from '../config.js';
 import { cfAccessAuth } from './auth.js';
 
@@ -318,44 +318,21 @@ app.post('/api/posts/:id/publish', async (req, res) => {
     );
     const pdfPath = path.join(postDir, 'carousel.pdf');
 
-    const platforms = post.platforms;
-    const results = {};
+    const captionFor = (platform) => post[`caption_${platform}`] || post.caption;
 
-    // Use platform-specific captions or fall back to the main caption
-    const captionFor = (platform) => {
-      const key = `caption_${platform}`;
-      return post[key] || post.caption;
-    };
-
-    if (platforms.includes('linkedin')) {
-      try {
-        await postToLinkedIn(pdfPath, captionFor('linkedin'));
-        results.linkedin = 'success';
-      } catch (e) {
-        results.linkedin = e.message;
-      }
-    }
-
-    if (platforms.includes('instagram')) {
-      try {
-        await postToInstagram(imagePaths, captionFor('instagram'));
-        results.instagram = 'success';
-      } catch (e) {
-        results.instagram = e.message;
-      }
-    }
-
-    if (platforms.includes('facebook')) {
-      try {
-        await postToFacebook(imagePaths, captionFor('facebook'));
-        results.facebook = 'success';
-      } catch (e) {
-        results.facebook = e.message;
-      }
-    }
+    const publishResult = await publishToAllPlatforms({
+      pdfPath,
+      imagePaths,
+      captions: {
+        linkedin: captionFor('linkedin'),
+        instagram: captionFor('instagram'),
+        facebook: captionFor('facebook'),
+        default: post.caption,
+      },
+    }, post.platforms);
 
     queries.updatePostStatus.run('published', post.id);
-    res.json({ status: 'published', results });
+    res.json({ status: 'published', results: publishResult.results });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -433,12 +410,24 @@ setInterval(() => {
 
           const captionFor = (platform) => post[`caption_${platform}`] || post.caption;
 
-          if (post.platforms.includes('linkedin')) await postToLinkedIn(pdfPath, captionFor('linkedin'));
-          if (post.platforms.includes('instagram')) await postToInstagram(imagePaths, captionFor('instagram'));
-          if (post.platforms.includes('facebook')) await postToFacebook(imagePaths, captionFor('facebook'));
+          const result = await publishToAllPlatforms({
+            pdfPath,
+            imagePaths,
+            captions: {
+              linkedin: captionFor('linkedin'),
+              instagram: captionFor('instagram'),
+              facebook: captionFor('facebook'),
+              default: post.caption,
+            },
+          }, post.platforms);
 
-          queries.updatePostStatus.run('published', post.id);
-          console.log(`✓ Scheduled post published: "${post.topic}"`);
+          if (result.allSucceeded) {
+            queries.updatePostStatus.run('published', post.id);
+            console.log(`✓ Scheduled post published: "${post.topic}"`);
+          } else {
+            console.error(`✗ Scheduled post partially failed: "${post.topic}" — failed: ${result.failedPlatforms.join(', ')}`);
+            queries.updatePostStatus.run('published', post.id); // Still mark as published for now; error recovery comes in Task 6
+          }
         } catch (err) {
           console.error(`✗ Scheduled post failed: "${post.topic}"`, err.message);
         }
