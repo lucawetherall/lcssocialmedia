@@ -74,6 +74,14 @@ describe('generateCarouselContent', () => {
     await expect(generateCarouselContent('topic')).rejects.toThrow('invalid type');
   });
 
+  it('sends thinkingConfig as a top-level field, not inside generationConfig', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(mockGeminiResponse(validContent));
+    await generateCarouselContent('Test topic', 'listicle');
+    const body = JSON.parse(globalThis.fetch.mock.calls[0][1].body);
+    expect(body.thinkingConfig).toEqual({ thinkingBudget: 0 });
+    expect(body.generationConfig.thinkingConfig).toBeUndefined();
+  });
+
   it('defaults empty body to empty string', async () => {
     const content = { ...validContent, slides: validContent.slides.map(s => ({ ...s, body: null })) };
     globalThis.fetch = vi.fn().mockResolvedValue(mockGeminiResponse(content));
