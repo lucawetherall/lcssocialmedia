@@ -109,8 +109,11 @@ export async function generateCarouselContent(topic, templateName = 'listicle') 
       },
       generationConfig: {
         temperature: 0.8,
-        maxOutputTokens: 2000,
+        maxOutputTokens: 8192,
         responseMimeType: 'application/json',
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
       },
     }),
   }, { maxRetries: 2, baseDelay: 1000 });
