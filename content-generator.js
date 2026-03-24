@@ -111,9 +111,9 @@ export async function generateCarouselContent(topic, templateName = 'listicle') 
         temperature: 0.8,
         maxOutputTokens: 8192,
         responseMimeType: 'application/json',
-      },
-      thinkingConfig: {
-        thinkingBudget: 0,
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
       },
     }),
   }, { maxRetries: 2, baseDelay: 1000 });
@@ -125,8 +125,12 @@ export async function generateCarouselContent(topic, templateName = 'listicle') 
 
   const data = await res.json();
 
-  // Extract text from Gemini's response structure
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  // Extract text from Gemini's response structure.
+  // Skip any thinking parts (thought: true) — thinkingBudget: 0 has known bugs
+  // where thinking tokens may still appear in the response.
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const responsePart = parts.find(p => !p.thought) || parts[parts.length - 1];
+  const text = responsePart?.text;
 
   if (!text) {
     throw new Error(`No content in Gemini response: ${JSON.stringify(data).substring(0, 500)}`);
