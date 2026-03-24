@@ -3,8 +3,9 @@
 // Get your free API key at: https://aistudio.google.com/apikey
 
 import { CONFIG } from './config.js';
+import { fetchWithRetry } from './utils/retry.js';
 
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-04-17';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Template-specific guidance injected into the prompt
@@ -89,7 +90,7 @@ export async function generateCarouselContent(topic, templateName = 'listicle') 
 
   const url = `${GEMINI_BASE_URL}/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
 
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -112,7 +113,7 @@ export async function generateCarouselContent(topic, templateName = 'listicle') 
         responseMimeType: 'application/json',
       },
     }),
-  });
+  }, { maxRetries: 2, baseDelay: 1000 });
 
   if (!res.ok) {
     const errBody = await res.text();
