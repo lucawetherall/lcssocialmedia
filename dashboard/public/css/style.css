@@ -264,6 +264,12 @@ body {
   font-style: italic;
 }
 
+.post-card-thumbnail .no-preview.render-error {
+  color: var(--danger);
+  font-style: normal;
+  font-weight: 600;
+}
+
 .post-card-body {
   padding: 16px;
 }

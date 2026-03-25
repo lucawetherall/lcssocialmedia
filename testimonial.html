@@ -22,31 +22,33 @@
     display: flex; flex-direction: column;
     justify-content: center; align-items: center;
     text-align: center; padding: 80px;
-    background: linear-gradient(175deg, #1a1a2e 0%, #16162a 50%, #1a1a2e 100%);
-    position: relative;
+    background:
+      radial-gradient(ellipse at 30% 70%, rgba(201,168,76,0.1) 0%, transparent 50%),
+      linear-gradient(175deg, #f5f0e8 0%, #ede6d8 100%);
+    position: relative; color: #1a1a2e;
   }
   .slide-hook::before {
     content: ''; position: absolute;
     top: 40px; left: 40px; right: 40px; bottom: 40px;
-    border: 1px solid rgba(201,168,76,0.2);
+    border: 1px solid rgba(201,168,76,0.3);
   }
   .slide-hook .logo-mark {
     font-family: 'Cormorant Garamond', serif;
     font-size: 22px; font-weight: 300; letter-spacing: 6px;
-    text-transform: uppercase; color: rgba(201,168,76,0.7);
+    text-transform: uppercase; color: rgba(201,168,76,0.8);
     margin-bottom: 60px;
   }
   .slide-hook .icon { font-size: 64px; margin-bottom: 40px; }
   .slide-hook h1 {
     font-family: 'Playfair Display', serif;
     font-size: 68px; font-weight: 700; line-height: 1.15;
-    color: #f5f0e8; max-width: 860px;
+    color: #1a1a2e; max-width: 860px;
   }
   .slide-hook .swipe-cue {
     position: absolute; bottom: 70px;
     font-family: 'Source Serif 4', serif;
     font-size: 18px; font-weight: 300; letter-spacing: 3px;
-    text-transform: uppercase; color: rgba(201,168,76,0.5);
+    text-transform: uppercase; color: rgba(201,168,76,0.6);
   }
   .slide-hook .swipe-cue::after { content: ' →'; }
 
@@ -57,7 +59,7 @@
     justify-content: center; align-items: center;
     text-align: center; padding: 100px 90px;
     background: #f5f0e8;
-    position: relative;
+    position: relative; color: #1a1a2e;
   }
   .slide-content::before {
     content: '"';
@@ -94,37 +96,39 @@
     display: flex; flex-direction: column;
     justify-content: center; align-items: center;
     text-align: center; padding: 80px;
-    background: linear-gradient(175deg, #1a1a2e 0%, #0f0f1e 100%);
-    position: relative;
+    background:
+      radial-gradient(ellipse at 50% 50%, rgba(201,168,76,0.12) 0%, transparent 60%),
+      linear-gradient(175deg, #f5f0e8 0%, #ede6d8 100%);
+    position: relative; color: #1a1a2e;
   }
   .slide-cta::before {
     content: ''; position: absolute;
     top: 40px; left: 40px; right: 40px; bottom: 40px;
-    border: 1px solid rgba(201,168,76,0.25);
+    border: 1px solid rgba(201,168,76,0.35);
   }
   .slide-cta .icon { font-size: 56px; margin-bottom: 40px; }
   .slide-cta h2 {
     font-family: 'Playfair Display', serif;
     font-size: 56px; font-weight: 600; line-height: 1.2;
-    color: #f5f0e8; margin-bottom: 30px; max-width: 800px;
+    color: #1a1a2e; margin-bottom: 30px; max-width: 800px;
   }
   .slide-cta p {
     font-family: 'Source Serif 4', serif;
     font-size: 30px; font-weight: 300; line-height: 1.5;
-    color: rgba(245,240,232,0.8); max-width: 700px;
+    color: #3a3a4e; max-width: 700px;
     margin-bottom: 50px;
   }
   .slide-cta .cta-url {
     font-family: 'Cormorant Garamond', serif;
     font-size: 28px; font-weight: 400; letter-spacing: 3px;
-    color: #c9a84c; padding: 20px 50px;
-    border: 1.5px solid rgba(201,168,76,0.5);
+    color: #8b6914; padding: 20px 50px;
+    border: 1.5px solid rgba(201,168,76,0.6);
   }
   .slide-cta .brand-footer {
     position: absolute; bottom: 65px;
     font-family: 'Cormorant Garamond', serif;
     font-size: 18px; font-weight: 300; letter-spacing: 4px;
-    text-transform: uppercase; color: rgba(201,168,76,0.4);
+    text-transform: uppercase; color: rgba(201,168,76,0.5);
   }
 </style>
 </head>

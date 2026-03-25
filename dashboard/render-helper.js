@@ -93,36 +93,50 @@ export async function renderPostSlides(postId, slides, templateName = 'listicle'
     await page.evaluate(() => document.fonts.ready);
 
     const imagePaths = [];
+    const failedSlides = [];
 
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i];
-
-      await page.evaluate(
-        (slideData, idx, total) => {
-          renderSlide(slideData, idx, total);
-        },
-        slide,
-        i,
-        slides.length
-      );
-
-      await new Promise((r) => setTimeout(r, 200));
-
       const filename = `slide-${String(i + 1).padStart(2, '0')}.png`;
       const filepath = path.join(postDir, filename);
 
-      await page.screenshot({
-        path: filepath,
-        type: 'png',
-        clip: {
-          x: 0,
-          y: 0,
-          width: CONFIG.slide.width,
-          height: CONFIG.slide.height,
-        },
-      });
+      try {
+        await page.evaluate(
+          (slideData, idx, total) => {
+            renderSlide(slideData, idx, total);
+          },
+          slide,
+          i,
+          slides.length
+        );
 
-      imagePaths.push(filename);
+        await new Promise((r) => setTimeout(r, 200));
+
+        await page.screenshot({
+          path: filepath,
+          type: 'png',
+          clip: {
+            x: 0,
+            y: 0,
+            width: CONFIG.slide.width,
+            height: CONFIG.slide.height,
+          },
+        });
+
+        imagePaths.push(filename);
+      } catch (slideErr) {
+        console.error(`⚠ Failed to render slide ${i + 1} for post ${postId}:`, slideErr.message);
+        failedSlides.push(i + 1);
+        // Continue rendering remaining slides
+      }
+    }
+
+    if (imagePaths.length === 0) {
+      throw new Error(`All ${slides.length} slides failed to render`);
+    }
+
+    if (failedSlides.length > 0) {
+      console.warn(`⚠ Post ${postId}: ${failedSlides.length} slide(s) failed to render (slides ${failedSlides.join(', ')})`);
     }
 
     // Generate PDF

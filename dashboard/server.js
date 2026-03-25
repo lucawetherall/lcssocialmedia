@@ -102,18 +102,24 @@ app.post('/api/auto-generate', apiKeyAuth, async (req, res) => {
         });
 
         const postId = result.lastInsertRowid;
-        await renderPostSlides(postId, content.slides, template);
 
-        // Mark as rendered
-        const post = queries.getPost.get(postId);
-        if (post) {
-          const parsed = parsePost(post);
-          queries.updatePost.run({
-            ...parsed,
-            slides: JSON.stringify(parsed.slides),
-            platforms: JSON.stringify(parsed.platforms),
-            rendered: 1,
-          });
+        // Render slides — capture errors without losing the post
+        try {
+          await renderPostSlides(postId, content.slides, template);
+          // Mark as rendered
+          const post = queries.getPost.get(postId);
+          if (post) {
+            const parsed = parsePost(post);
+            queries.updatePost.run({
+              ...parsed,
+              slides: JSON.stringify(parsed.slides),
+              platforms: JSON.stringify(parsed.platforms),
+              rendered: 1,
+            });
+          }
+        } catch (renderErr) {
+          console.error(`⚠ Rendering failed for post ${postId}:`, renderErr.message);
+          queries.updatePostError.run(`Rendering failed: ${renderErr.message}`, postId);
         }
 
         // Schedule
@@ -342,19 +348,23 @@ app.post('/api/generate', async (req, res) => {
 
         const postId = result.lastInsertRowid;
 
-        // Render slides
-        await renderPostSlides(postId, content.slides, template);
-        queries.updatePostStatus.run('draft', postId);
-        // Mark as rendered
-        const post = queries.getPost.get(postId);
-        if (post) {
-          const parsed = parsePost(post);
-          queries.updatePost.run({
-            ...parsed,
-            slides: JSON.stringify(parsed.slides),
-            platforms: JSON.stringify(parsed.platforms),
-            rendered: 1,
-          });
+        // Render slides — capture errors without losing the post
+        try {
+          await renderPostSlides(postId, content.slides, template);
+          // Mark as rendered
+          const post = queries.getPost.get(postId);
+          if (post) {
+            const parsed = parsePost(post);
+            queries.updatePost.run({
+              ...parsed,
+              slides: JSON.stringify(parsed.slides),
+              platforms: JSON.stringify(parsed.platforms),
+              rendered: 1,
+            });
+          }
+        } catch (renderErr) {
+          console.error(`⚠ Rendering failed for post ${postId}:`, renderErr.message);
+          queries.updatePostError.run(`Rendering failed: ${renderErr.message}`, postId);
         }
 
         results.push({
