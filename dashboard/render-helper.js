@@ -89,8 +89,14 @@ export async function renderPostSlides(postId, slides, templateName = 'listicle'
       deviceScaleFactor: 2,
     });
 
-    await page.setContent(templateHtml, { waitUntil: 'networkidle0', timeout: 30000 });
-    await page.evaluate(() => document.fonts.ready);
+    // Use networkidle2 (allows 2 outstanding connections) — networkidle0 hangs
+    // when Google Fonts keeps connections alive for woff2 downloads
+    await page.setContent(templateHtml, { waitUntil: 'networkidle2', timeout: 30000 });
+    // Wait for fonts with a timeout — don't block forever if fonts fail to load
+    await Promise.race([
+      page.evaluate(() => document.fonts.ready),
+      new Promise((r) => setTimeout(r, 5000)),
+    ]);
 
     const imagePaths = [];
     const failedSlides = [];
@@ -196,8 +202,11 @@ export async function renderSingleSlide(postId, slideIndex, slide, templateName 
       deviceScaleFactor: 2,
     });
 
-    await page.setContent(templateHtml, { waitUntil: 'networkidle0', timeout: 30000 });
-    await page.evaluate(() => document.fonts.ready);
+    await page.setContent(templateHtml, { waitUntil: 'networkidle2', timeout: 30000 });
+    await Promise.race([
+      page.evaluate(() => document.fonts.ready),
+      new Promise((r) => setTimeout(r, 5000)),
+    ]);
 
     await page.evaluate(
       (slideData, idx, total) => {

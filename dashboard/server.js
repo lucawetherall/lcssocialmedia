@@ -12,7 +12,7 @@ import { renderPostSlides, renderSingleSlide, closeBrowser } from './render-help
 import { generateCarouselContent } from '../content-generator.js';
 import { publishToAllPlatforms } from '../poster.js';
 import { CONFIG } from '../config.js';
-import { cfAccessAuth, apiKeyAuth } from './auth.js';
+import { apiKeyAuth } from './auth.js';
 import { checkTokenExpiry } from '../utils/token-expiry.js';
 import { getNextAvailableSlots } from './scheduler.js';
 
@@ -116,6 +116,7 @@ app.post('/api/auto-generate', apiKeyAuth, async (req, res) => {
               platforms: JSON.stringify(parsed.platforms),
               rendered: 1,
             });
+            queries.clearPostError.run(postId);
           }
         } catch (renderErr) {
           console.error(`⚠ Rendering failed for post ${postId}:`, renderErr.message);
@@ -151,11 +152,8 @@ app.post('/api/auto-generate', apiKeyAuth, async (req, res) => {
   }
 });
 
-// Apply CF Access to all /api/* routes EXCEPT auto-generate (uses API key auth instead)
-app.use('/api', (req, res, next) => {
-  if (req.path === '/auto-generate') return next();
-  cfAccessAuth(req, res, next);
-});
+// Dashboard API routes are open (protected at network level via DuckDNS).
+// The /api/auto-generate route uses apiKeyAuth for GitHub Actions.
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -361,6 +359,7 @@ app.post('/api/generate', async (req, res) => {
               platforms: JSON.stringify(parsed.platforms),
               rendered: 1,
             });
+            queries.clearPostError.run(postId);
           }
         } catch (renderErr) {
           console.error(`⚠ Rendering failed for post ${postId}:`, renderErr.message);
@@ -438,9 +437,11 @@ app.post('/api/posts/:id/render', async (req, res) => {
       platforms: JSON.stringify(post.platforms),
       rendered: 1,
     });
+    queries.clearPostError.run(post.id);
 
     res.json(parsePost(queries.getPost.get(req.params.id)));
   } catch (err) {
+    queries.updatePostError.run(`Render failed: ${err.message}`, req.params.id);
     res.status(500).json({ error: err.message });
   }
 });

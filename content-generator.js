@@ -3,8 +3,9 @@
 // Get your free API key at: https://aistudio.google.com/apikey
 
 import { CONFIG } from './config.js';
+import { fetchWithRetry } from './utils/retry.js';
 
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-04-17';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Template-specific guidance injected into the prompt
@@ -89,7 +90,7 @@ export async function generateCarouselContent(topic, templateName = 'listicle') 
 
   const url = `${GEMINI_BASE_URL}/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
 
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -108,11 +109,14 @@ export async function generateCarouselContent(topic, templateName = 'listicle') 
       },
       generationConfig: {
         temperature: 0.8,
-        maxOutputTokens: 2000,
+        maxOutputTokens: 8192,
         responseMimeType: 'application/json',
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
       },
     }),
-  });
+  }, { maxRetries: 2, baseDelay: 1000 });
 
   if (!res.ok) {
     const errBody = await res.text();
@@ -121,8 +125,12 @@ export async function generateCarouselContent(topic, templateName = 'listicle') 
 
   const data = await res.json();
 
-  // Extract text from Gemini's response structure
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  // Extract text from Gemini's response structure.
+  // Skip any thinking parts (thought: true) — thinkingBudget: 0 has known bugs
+  // where thinking tokens may still appear in the response.
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const responsePart = parts.find(p => !p.thought) || parts[parts.length - 1];
+  const text = responsePart?.text;
 
   if (!text) {
     throw new Error(`No content in Gemini response: ${JSON.stringify(data).substring(0, 500)}`);

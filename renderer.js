@@ -41,10 +41,15 @@ export async function renderCarousel(content, templateName = 'listicle') {
     });
 
     // Load the template — 30s timeout guards against slow/unavailable Google Fonts CDN
-    await page.setContent(templateHtml, { waitUntil: 'networkidle0', timeout: 30000 });
+    // Use networkidle2 (allows 2 outstanding connections) — networkidle0 hangs
+    // when Google Fonts keeps connections alive for woff2 downloads
+    await page.setContent(templateHtml, { waitUntil: 'networkidle2', timeout: 30000 });
 
-    // Wait for Google Fonts to load
-    await page.evaluate(() => document.fonts.ready);
+    // Wait for Google Fonts to load (with 5s timeout fallback)
+    await Promise.race([
+      page.evaluate(() => document.fonts.ready),
+      new Promise((r) => setTimeout(r, 5000)),
+    ]);
 
     // Render each slide
     for (let i = 0; i < content.slides.length; i++) {

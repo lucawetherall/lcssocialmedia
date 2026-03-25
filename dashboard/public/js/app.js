@@ -118,18 +118,15 @@
       const thumbSrc = post.rendered
         ? `/slides/${post.id}/slide-01.png?t=${Date.now()}`
         : '';
-
-      const renderLabel = post.rendered
-        ? ''
-        : post.last_error
-          ? `<span class="no-preview render-error">Render failed</span>`
-          : `<span class="no-preview">Rendering...</span>`;
+      const renderFailed = !post.rendered && post.last_error;
 
       card.innerHTML = `
         <div class="post-card-thumbnail">
           ${thumbSrc
             ? `<img src="${thumbSrc}" alt="Slide 1" loading="lazy">`
-            : renderLabel
+            : renderFailed
+              ? `<span class="no-preview render-failed">Render failed<button class="retry-render-btn" data-id="${post.id}" title="Retry render">&#x21bb;</button></span>`
+              : `<span class="no-preview">Rendering...</span>`
           }
         </div>
         <div class="post-card-body">
@@ -142,9 +139,28 @@
         </div>
       `;
 
-      card.addEventListener('click', () => openPost(post.id));
+      card.addEventListener('click', (e) => {
+        // If retry button was clicked, re-render instead of opening the post
+        if (e.target.classList.contains('retry-render-btn')) {
+          e.stopPropagation();
+          retryRender(post.id);
+          return;
+        }
+        openPost(post.id);
+      });
       postGrid.appendChild(card);
     });
+  }
+
+  async function retryRender(postId) {
+    try {
+      toast('Re-rendering...');
+      await api(`/api/posts/${postId}/render`, { method: 'POST' });
+      toast('Rendered successfully', 'success');
+      await loadPosts();
+    } catch (err) {
+      toast(`Render failed: ${err.message}`, 'error');
+    }
   }
 
   function renderStats() {
