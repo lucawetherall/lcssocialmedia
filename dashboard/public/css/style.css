@@ -265,11 +265,13 @@ body {
 }
 
 .post-card-thumbnail .render-failed {
-  color: #c0392b;
+  color: var(--danger);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  font-style: normal;
+  font-weight: 600;
 }
 
 .retry-render-btn {

@@ -203,10 +203,10 @@
     badge.textContent = currentPost.status;
     badge.className = `status-badge status-${currentPost.status}`;
 
-    // Show error for failed posts
+    // Show error for failed posts or rendering errors
     const errorDisplay = document.querySelector('#post-error');
     if (errorDisplay) {
-      if (currentPost.status === 'failed' && currentPost.last_error) {
+      if (currentPost.last_error) {
         errorDisplay.textContent = `Error: ${currentPost.last_error}`;
         errorDisplay.style.display = '';
       } else {
@@ -214,10 +214,16 @@
       }
     }
 
-    // Show/hide retry button
+    // Show/hide retry button for failed posts
     const retryBtn = document.querySelector('#btn-retry');
     if (retryBtn) {
       retryBtn.style.display = currentPost.status === 'failed' ? '' : 'none';
+    }
+
+    // Show/hide re-render button for unrendered posts
+    const rerenderBtn = document.querySelector('#btn-rerender');
+    if (rerenderBtn) {
+      rerenderBtn.style.display = !currentPost.rendered ? '' : 'none';
     }
 
     $('#edit-caption').value = currentPost.caption || '';
@@ -401,6 +407,24 @@
           toast('Post queued for retry');
         } catch (err) {
           toast(err.message, 'error');
+        }
+      });
+    }
+
+    // Re-render slides
+    const rerenderBtnEl = document.querySelector('#btn-rerender');
+    if (rerenderBtnEl) {
+      rerenderBtnEl.addEventListener('click', async () => {
+        if (!currentPost) return;
+        showLoading();
+        try {
+          currentPost = await api(`/api/posts/${currentPost.id}/render`, { method: 'POST' });
+          renderModal();
+          toast('Slides re-rendered successfully');
+        } catch (err) {
+          toast(err.message, 'error');
+        } finally {
+          hideLoading();
         }
       });
     }

@@ -103,6 +103,7 @@ app.post('/api/auto-generate', apiKeyAuth, async (req, res) => {
 
         const postId = result.lastInsertRowid;
 
+        // Render slides — capture errors without losing the post
         try {
           await renderPostSlides(postId, content.slides, template);
           // Mark as rendered
@@ -118,8 +119,8 @@ app.post('/api/auto-generate', apiKeyAuth, async (req, res) => {
             queries.clearPostError.run(postId);
           }
         } catch (renderErr) {
-          console.error(`✗ Render failed for post ${postId}:`, renderErr.message);
-          queries.updatePostError.run(`Render failed: ${renderErr.message}`, postId);
+          console.error(`⚠ Rendering failed for post ${postId}:`, renderErr.message);
+          queries.updatePostError.run(`Rendering failed: ${renderErr.message}`, postId);
         }
 
         // Schedule
@@ -345,7 +346,7 @@ app.post('/api/generate', async (req, res) => {
 
         const postId = result.lastInsertRowid;
 
-        // Render slides
+        // Render slides — capture errors without losing the post
         try {
           await renderPostSlides(postId, content.slides, template);
           // Mark as rendered
@@ -361,9 +362,8 @@ app.post('/api/generate', async (req, res) => {
             queries.clearPostError.run(postId);
           }
         } catch (renderErr) {
-          console.error(`✗ Render failed for post ${postId}:`, renderErr.message);
-          // Mark render failure so the dashboard can show retry button
-          queries.updatePostError.run(`Render failed: ${renderErr.message}`, postId);
+          console.error(`⚠ Rendering failed for post ${postId}:`, renderErr.message);
+          queries.updatePostError.run(`Rendering failed: ${renderErr.message}`, postId);
         }
 
         results.push({
