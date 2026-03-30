@@ -267,31 +267,41 @@ bot.action(/^view:(\d+)$/, async (ctx) => {
 
 bot.action(/^approve:(\d+)$/, async (ctx) => {
   const postId = parseInt(ctx.match[1]);
-  const post = approvePost(postId);
-  if (!post) {
-    await ctx.answerCbQuery('Post not found');
-    return;
-  }
-  await ctx.answerCbQuery('Approved');
+  try {
+    const post = approvePost(postId);
+    if (!post) {
+      await ctx.answerCbQuery('Post not found');
+      return;
+    }
+    await ctx.answerCbQuery('Approved');
 
-  const keyboard = buildKeyboard(postId, 'approved');
-  await ctx.editMessageText(
-    `Post #${postId} — APPROVED\nTopic: ${post.topic}\n\n${(post.caption || '').slice(0, 3500)}`,
-    keyboard
-  );
+    const keyboard = buildKeyboard(postId, 'approved');
+    await ctx.editMessageText(
+      `Post #${postId} — APPROVED\nTopic: ${post.topic}\n\n${(post.caption || '').slice(0, 3500)}`,
+      keyboard
+    );
+  } catch (err) {
+    await ctx.answerCbQuery('Error');
+    await ctx.reply(`Failed to approve: ${err.message}`);
+  }
 });
 
 bot.action(/^reject:(\d+)$/, async (ctx) => {
   const postId = parseInt(ctx.match[1]);
-  rejectPost(postId);
-  await ctx.answerCbQuery('Rejected');
+  try {
+    rejectPost(postId);
+    await ctx.answerCbQuery('Rejected');
 
-  await ctx.editMessageText(
-    `Post #${postId} rejected.`,
-    Markup.inlineKeyboard([
-      [Markup.button.callback('Generate replacement', `replace:${postId}`)],
-    ])
-  );
+    await ctx.editMessageText(
+      `Post #${postId} rejected.`,
+      Markup.inlineKeyboard([
+        [Markup.button.callback('Generate replacement', `replace:${postId}`)],
+      ])
+    );
+  } catch (err) {
+    await ctx.answerCbQuery('Error');
+    await ctx.reply(`Failed to reject: ${err.message}`);
+  }
 });
 
 bot.action(/^replace:(\d+)$/, async (ctx) => {
@@ -322,7 +332,7 @@ bot.action(/^caption_apply:(\d+):(.+)$/, async (ctx) => {
   const platform = ctx.match[2];
   const state = conversationState.get(String(CHAT_ID));
 
-  if (!state || !state.pendingCaption) {
+  if (!state || !state.pendingCaption || state.postId !== postId) {
     await ctx.answerCbQuery('Session expired. Try again.');
     return;
   }
@@ -371,9 +381,14 @@ bot.action(/^schedule:(\d+)$/, async (ctx) => {
 bot.action(/^confirm_schedule:(\d+):(.+)$/, async (ctx) => {
   const postId = parseInt(ctx.match[1]);
   const slot = ctx.match[2].replace('T', ' ');
-  schedulePost(postId, slot);
-  await ctx.answerCbQuery('Scheduled');
-  await ctx.editMessageText(`Post #${postId} scheduled for ${slot}`);
+  try {
+    schedulePost(postId, slot);
+    await ctx.answerCbQuery('Scheduled');
+    await ctx.editMessageText(`Post #${postId} scheduled for ${slot}`);
+  } catch (err) {
+    await ctx.answerCbQuery('Error');
+    await ctx.reply(`Failed to schedule: ${err.message}`);
+  }
 });
 
 bot.action(/^custom_schedule:(\d+)$/, async (ctx) => {
@@ -406,9 +421,14 @@ bot.action(/^publish_now:(\d+)$/, async (ctx) => {
 
 bot.action(/^delete:(\d+)$/, async (ctx) => {
   const postId = parseInt(ctx.match[1]);
-  deletePost(postId);
-  await ctx.answerCbQuery('Deleted');
-  await ctx.editMessageText(`Post #${postId} deleted.`);
+  try {
+    deletePost(postId);
+    await ctx.answerCbQuery('Deleted');
+    await ctx.editMessageText(`Post #${postId} deleted.`);
+  } catch (err) {
+    await ctx.answerCbQuery('Error');
+    await ctx.reply(`Failed to delete: ${err.message}`);
+  }
 });
 
 // ── Text message handler (conversation state) ──
