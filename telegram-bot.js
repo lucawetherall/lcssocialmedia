@@ -96,7 +96,7 @@ async function sendPostPreview(postId) {
   const caption = post.caption || '(no caption)';
   const statusLabel = post.status.toUpperCase();
   const text = [
-    `*Post #${postId}* — ${statusLabel}`,
+    `Post #${postId} — ${statusLabel}`,
     `Topic: ${post.topic}`,
     `Template: ${post.template}`,
     '',
@@ -105,10 +105,7 @@ async function sendPostPreview(postId) {
 
   const keyboard = buildKeyboard(postId, post.status);
 
-  await bot.telegram.sendMessage(CHAT_ID, text, {
-    parse_mode: 'Markdown',
-    ...keyboard,
-  });
+  await bot.telegram.sendMessage(CHAT_ID, text, keyboard);
 }
 
 function buildKeyboard(postId, status) {
@@ -271,12 +268,16 @@ bot.action(/^view:(\d+)$/, async (ctx) => {
 bot.action(/^approve:(\d+)$/, async (ctx) => {
   const postId = parseInt(ctx.match[1]);
   const post = approvePost(postId);
+  if (!post) {
+    await ctx.answerCbQuery('Post not found');
+    return;
+  }
   await ctx.answerCbQuery('Approved');
 
   const keyboard = buildKeyboard(postId, 'approved');
   await ctx.editMessageText(
-    `*Post #${postId}* — APPROVED\nTopic: ${post.topic}\n\n${(post.caption || '').slice(0, 3500)}`,
-    { parse_mode: 'Markdown', ...keyboard }
+    `Post #${postId} — APPROVED\nTopic: ${post.topic}\n\n${(post.caption || '').slice(0, 3500)}`,
+    keyboard
   );
 });
 
@@ -360,7 +361,7 @@ bot.action(/^schedule:(\d+)$/, async (ctx) => {
     `Next available slot: ${nextSlot}\nSchedule post #${postId}?`,
     Markup.inlineKeyboard([
       [
-        Markup.button.callback('Confirm', `confirm_schedule:${postId}:${nextSlot}`),
+        Markup.button.callback('Confirm', `confirm_schedule:${postId}:${nextSlot.replace(' ', 'T')}`),
         Markup.button.callback('Custom time', `custom_schedule:${postId}`),
       ],
     ])
@@ -369,7 +370,7 @@ bot.action(/^schedule:(\d+)$/, async (ctx) => {
 
 bot.action(/^confirm_schedule:(\d+):(.+)$/, async (ctx) => {
   const postId = parseInt(ctx.match[1]);
-  const slot = ctx.match[2];
+  const slot = ctx.match[2].replace('T', ' ');
   schedulePost(postId, slot);
   await ctx.answerCbQuery('Scheduled');
   await ctx.editMessageText(`Post #${postId} scheduled for ${slot}`);
@@ -389,7 +390,10 @@ bot.action(/^publish_now:(\d+)$/, async (ctx) => {
 
   try {
     const result = await publishPost(postId);
-    const lines = [`Post #${postId} published.`];
+    const header = result.allSucceeded
+      ? `Post #${postId} published.`
+      : `Post #${postId} partially failed.`;
+    const lines = [header];
     for (const r of result.results) {
       const icon = r.success !== false ? 'OK' : 'FAIL';
       lines.push(`  ${r.platform || 'unknown'}: ${icon}${r.error ? ' — ' + r.error : ''}`);

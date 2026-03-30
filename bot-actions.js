@@ -114,8 +114,13 @@ export async function publishPost(postId) {
     },
   }, post.platforms);
 
-  queries.updatePostStatus.run('published', post.id);
-  queries.clearPostError.run(post.id);
+  if (result.allSucceeded) {
+    queries.updatePostStatus.run('published', post.id);
+    queries.clearPostError.run(post.id);
+  } else {
+    queries.updatePostStatus.run('failed', post.id);
+    queries.updatePostError.run(`Failed platforms: ${result.failedPlatforms.join(', ')}`, post.id);
+  }
 
   return result;
 }
