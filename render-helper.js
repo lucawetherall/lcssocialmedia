@@ -13,22 +13,53 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = __dirname;
 const DATA_DIR = path.join(__dirname, 'data');
 
-// Find Chrome/Chromium binary
+// Find Chrome/Chromium binary (cached after first lookup)
+let cachedChromePath = undefined;
+let chromePathResolved = false;
+
 async function findChromePath() {
+  if (chromePathResolved) return cachedChromePath;
+
   const candidates = [
     '/root/.cache/ms-playwright/chromium-1194/chrome-linux/chrome',
     '/usr/bin/chromium-browser',
     '/usr/bin/chromium',
     '/usr/bin/google-chrome',
+    // macOS paths
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
   ];
   for (const p of candidates) {
     try {
       await fs.access(p);
-      return p;
+      cachedChromePath = p;
+      chromePathResolved = true;
+      return cachedChromePath;
     } catch {}
   }
+  chromePathResolved = true;
   return undefined; // let Puppeteer find its own
 }
+
+// Low-memory Chromium flags for background/always-on use
+const CHROME_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--font-render-hinting=none',
+  '--disable-gpu',
+  '--disable-extensions',
+  '--disable-background-networking',
+  '--disable-background-timer-throttling',
+  '--disable-default-apps',
+  '--disable-sync',
+  '--disable-translate',
+  '--metrics-recording-only',
+  '--no-first-run',
+  '--mute-audio',
+  '--hide-scrollbars',
+  '--single-process',
+];
 
 let browserInstance = null;
 
@@ -39,12 +70,7 @@ async function getBrowser() {
   browserInstance = await puppeteer.launch({
     headless: true,
     executablePath,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--font-render-hinting=none',
-    ],
+    args: CHROME_ARGS,
   });
 
   browserInstance.on('disconnected', () => {

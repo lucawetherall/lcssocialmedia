@@ -96,39 +96,56 @@ npm run setup
 
 ---
 
-## macOS launchd (alternative to pm2)
+## macOS launchd (recommended for Mac Mini)
 
-If you prefer native macOS process management:
+The repo includes `com.lcs.carousel-bot.plist` — an optimized launchd config that runs the bot at low CPU/IO priority so it never interferes with foreground work.
 
-Create `~/Library/LaunchAgents/com.lcs.carousel-bot.plist`:
+### Setup
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.lcs.carousel-bot</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/local/bin/node</string>
-        <string>/path/to/lcssocialmedia/telegram-bot.js</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string>/path/to/lcssocialmedia</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/lcs-bot.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/lcs-bot-error.log</string>
-</dict>
-</plist>
-```
+1. Edit `com.lcs.carousel-bot.plist` — update the three paths marked `CHANGE THIS`:
+   - `WorkingDirectory` → your repo path (e.g. `/Users/luca/lcssocialmedia`)
+   - `ProgramArguments` → your node binary (run `which node` to find it)
+   - Log paths → where you want logs written
 
-Then load it:
+2. Create the logs directory:
+   ```bash
+   mkdir -p logs
+   ```
+
+3. Copy and load:
+   ```bash
+   cp com.lcs.carousel-bot.plist ~/Library/LaunchAgents/
+   launchctl load ~/Library/LaunchAgents/com.lcs.carousel-bot.plist
+   ```
+
+4. Verify:
+   ```bash
+   launchctl list | grep lcs
+   ```
+
+### What the plist does
+
+| Setting | Effect |
+|---|---|
+| `Nice: 15` | Lowers CPU priority — your other apps always get CPU first |
+| `LowPriorityIO` | Deprioritizes disk I/O so renders won't slow other tasks |
+| `ProcessType: Background` | macOS treats it as lowest QoS tier |
+| `KeepAlive` | Auto-restarts on crash |
+| `RunAtLoad` | Starts on login |
+| `ThrottleInterval: 10` | Prevents crash-loop from hammering resources |
+
+### Manage
+
 ```bash
-launchctl load ~/Library/LaunchAgents/com.lcs.carousel-bot.plist
+launchctl stop  com.lcs.carousel-bot   # stop
+launchctl start com.lcs.carousel-bot   # start
+launchctl unload ~/Library/LaunchAgents/com.lcs.carousel-bot.plist  # disable
+
+# View logs
+tail -f logs/stdout.log
+tail -f logs/stderr.log
 ```
+
+### Why launchd over Docker?
+
+Docker Desktop on macOS runs a hidden Linux VM that reserves 1-2GB RAM even when idle. This bot is a single Node.js process — launchd is native, zero-overhead, and gives you OS-level priority controls that Docker can't match.

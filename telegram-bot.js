@@ -51,9 +51,24 @@ bot.use((ctx, next) => {
   return next();
 });
 
-// ── Conversation state (single user, in-memory) ──
+// ── Conversation state (single user, in-memory, auto-expires after 10 min) ──
 
+const CONVERSATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const conversationState = new Map();
+
+function setConversationState(key, value) {
+  conversationState.set(key, { ...value, _ts: Date.now() });
+}
+
+function getConversationState(key) {
+  const entry = conversationState.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry._ts > CONVERSATION_TTL_MS) {
+    conversationState.delete(key);
+    return null;
+  }
+  return entry;
+}
 
 // ── Send post preview ──
 
@@ -323,14 +338,14 @@ bot.action(/^replace:(\d+)$/, async (ctx) => {
 bot.action(/^edit_caption:(\d+)$/, async (ctx) => {
   const postId = parseInt(ctx.match[1]);
   await ctx.answerCbQuery();
-  conversationState.set(String(CHAT_ID), { action: 'awaiting_caption', postId });
+  setConversationState(String(CHAT_ID), { action: 'awaiting_caption', postId });
   await ctx.reply(`Send the new caption for post #${postId}:`);
 });
 
 bot.action(/^caption_apply:(\d+):(.+)$/, async (ctx) => {
   const postId = parseInt(ctx.match[1]);
   const platform = ctx.match[2];
-  const state = conversationState.get(String(CHAT_ID));
+  const state = getConversationState(String(CHAT_ID));
 
   if (!state || !state.pendingCaption || state.postId !== postId) {
     await ctx.answerCbQuery('Session expired. Try again.');
@@ -394,7 +409,7 @@ bot.action(/^confirm_schedule:(\d+):(.+)$/, async (ctx) => {
 bot.action(/^custom_schedule:(\d+)$/, async (ctx) => {
   const postId = parseInt(ctx.match[1]);
   await ctx.answerCbQuery();
-  conversationState.set(String(CHAT_ID), { action: 'awaiting_schedule', postId });
+  setConversationState(String(CHAT_ID), { action: 'awaiting_schedule', postId });
   await ctx.reply(`Send the date/time for post #${postId} (format: YYYY-MM-DD HH:MM):`);
 });
 
@@ -437,14 +452,14 @@ bot.on('text', async (ctx) => {
   // Ignore commands (they're handled above)
   if (ctx.message.text.startsWith('/')) return;
 
-  const state = conversationState.get(String(CHAT_ID));
+  const state = getConversationState(String(CHAT_ID));
   if (!state) return;
 
   const text = ctx.message.text.trim();
 
   if (state.action === 'awaiting_caption') {
     // Store pending caption, ask which platform(s)
-    conversationState.set(String(CHAT_ID), { ...state, action: 'choosing_platform', pendingCaption: text });
+    setConversationState(String(CHAT_ID), { ...state, action: 'choosing_platform', pendingCaption: text });
 
     await ctx.reply(
       'Apply caption to:',
@@ -503,9 +518,10 @@ cron.schedule('0 9 * * 1,4', async () => {
   }
 });
 
-// ── Cron: publish scheduled posts every minute ──
+// ── Cron: publish scheduled posts every 5 minutes ──
+// Posts are scheduled hours/days in advance; minute-level precision is unnecessary.
 
-cron.schedule('* * * * *', async () => {
+cron.schedule('*/5 * * * *', async () => {
   await publishScheduledPosts((post, success, error) => {
     const msg = success
       ? `Published: "${post.topic}"`
@@ -532,4 +548,4 @@ bot.launch();
 console.log('LCS Telegram bot started.');
 console.log(`Listening for chat ID: ${CHAT_ID}`);
 console.log('Cron: auto-generate Mon & Thu at 09:00 UTC');
-console.log('Cron: publish scheduler running every minute');
+console.log('Cron: publish scheduler running every 5 minutes');

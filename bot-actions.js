@@ -18,6 +18,13 @@ const DATA_DIR = path.join(__dirname, 'data');
 
 // ── Helpers ──
 
+function cleanupPostFiles(postId) {
+  const postDir = path.join(DATA_DIR, 'posts', String(postId));
+  fs.rm(postDir, { recursive: true }).catch((err) => {
+    if (err.code !== 'ENOENT') console.warn(`Cleanup failed for post ${postId}:`, err.message);
+  });
+}
+
 export function parsePost(row) {
   if (!row) return null;
   return {
@@ -117,6 +124,8 @@ export async function publishPost(postId) {
   if (result.allSucceeded) {
     queries.updatePostStatus.run('published', post.id);
     queries.clearPostError.run(post.id);
+    // Clean up rendered files — they're no longer needed after publishing
+    cleanupPostFiles(post.id);
   } else {
     queries.updatePostStatus.run('failed', post.id);
     queries.updatePostError.run(`Failed platforms: ${result.failedPlatforms.join(', ')}`, post.id);
@@ -170,6 +179,7 @@ export async function publishScheduledPosts(notifyFn) {
         if (result.allSucceeded) {
           queries.updatePostStatus.run('published', post.id);
           queries.clearPostError.run(post.id);
+          cleanupPostFiles(post.id);
           console.log(`Scheduled post published: "${post.topic}"`);
           if (notifyFn) notifyFn(post, true, null);
         } else {
@@ -272,28 +282,12 @@ export async function autoGenerate(count) {
 // ── Status / health ──
 
 export function getStatus() {
-  const lastPublished = db.prepare(
-    "SELECT updated_at FROM posts WHERE status = 'published' ORDER BY updated_at DESC LIMIT 1"
-  ).get();
-  const pendingPosts = db.prepare(
-    "SELECT COUNT(*) as count FROM posts WHERE status IN ('approved', 'scheduled')"
-  ).get();
-  const nextScheduled = db.prepare(
-    "SELECT scheduled_at FROM posts WHERE status = 'scheduled' ORDER BY scheduled_at ASC LIMIT 1"
-  ).get();
-  const failedPosts = db.prepare(
-    "SELECT COUNT(*) as count FROM posts WHERE status = 'failed'"
-  ).get();
-  const draftPosts = db.prepare(
-    "SELECT COUNT(*) as count FROM posts WHERE status = 'draft'"
-  ).get();
-
   return {
-    drafts: draftPosts?.count || 0,
-    pending: pendingPosts?.count || 0,
-    failed: failedPosts?.count || 0,
-    lastPublished: lastPublished?.updated_at || null,
-    nextScheduled: nextScheduled?.scheduled_at || null,
+    drafts: queries.getDraftCount.get()?.count || 0,
+    pending: queries.getPendingCount.get()?.count || 0,
+    failed: queries.getFailedCount.get()?.count || 0,
+    lastPublished: queries.getLastPublished.get()?.updated_at || null,
+    nextScheduled: queries.getNextScheduled.get()?.scheduled_at || null,
     tokenWarnings: checkTokenExpiry(),
   };
 }

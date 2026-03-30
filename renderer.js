@@ -27,6 +27,17 @@ export async function renderCarousel(content, templateName = 'listicle') {
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--font-render-hinting=none',
+      '--disable-gpu',
+      '--disable-extensions',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+      '--metrics-recording-only',
+      '--no-first-run',
+      '--mute-audio',
+      '--hide-scrollbars',
+      '--single-process',
     ],
   });
 
