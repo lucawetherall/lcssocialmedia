@@ -1,4 +1,4 @@
-// dashboard/db.js
+// db.js
 // SQLite database for draft post management
 
 import Database from 'better-sqlite3';

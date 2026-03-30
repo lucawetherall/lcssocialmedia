@@ -4,10 +4,10 @@
   "description": "Automated carousel post generator for The London Choral Service",
   "type": "module",
   "scripts": {
-    "start": "node scripts/pipeline.js",
+    "start": "node telegram-bot.js",
+    "pipeline": "node scripts/pipeline.js",
     "dry-run": "node scripts/pipeline.js --dry-run",
     "render-only": "node scripts/pipeline.js --render-only",
-    "dashboard": "node dashboard/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -16,12 +16,12 @@
   "dependencies": {
     "better-sqlite3": "^12.8.0",
     "dotenv": "^16.4.0",
-    "express": "^5.2.1",
     "form-data": "^4.0.0",
-    "jose": "^6.2.1",
+    "node-cron": "^4.2.1",
     "node-fetch": "^3.3.0",
     "pdf-lib": "^1.17.1",
-    "puppeteer": "^23.0.0"
+    "puppeteer": "^23.0.0",
+    "telegraf": "^4.16.3"
   },
   "devDependencies": {
     "vitest": "^4.1.0"

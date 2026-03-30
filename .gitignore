@@ -3,4 +3,4 @@ output/
 .env
 *.png
 *.pdf
-dashboard/data/
+data/
