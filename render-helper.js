@@ -1,5 +1,5 @@
-// dashboard/render-helper.js
-// Renders carousel slides to PNG images for dashboard preview
+// render-helper.js
+// Renders carousel slides to PNG images for preview
 // Uses Puppeteer with the existing HTML templates
 
 import puppeteer from 'puppeteer';
@@ -7,10 +7,10 @@ import { PDFDocument } from 'pdf-lib';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { CONFIG } from '../config.js';
+import { CONFIG } from './config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.join(__dirname, '..');
+const PROJECT_ROOT = __dirname;
 const DATA_DIR = path.join(__dirname, 'data');
 
 // Find Chrome/Chromium binary
@@ -131,9 +131,8 @@ export async function renderPostSlides(postId, slides, templateName = 'listicle'
 
         imagePaths.push(filename);
       } catch (slideErr) {
-        console.error(`⚠ Failed to render slide ${i + 1} for post ${postId}:`, slideErr.message);
+        console.error(`Failed to render slide ${i + 1} for post ${postId}:`, slideErr.message);
         failedSlides.push(i + 1);
-        // Continue rendering remaining slides
       }
     }
 
@@ -142,7 +141,7 @@ export async function renderPostSlides(postId, slides, templateName = 'listicle'
     }
 
     if (failedSlides.length > 0) {
-      console.warn(`⚠ Post ${postId}: ${failedSlides.length} slide(s) failed to render (slides ${failedSlides.join(', ')})`);
+      console.warn(`Post ${postId}: ${failedSlides.length} slide(s) failed to render (slides ${failedSlides.join(', ')})`);
     }
 
     // Generate PDF

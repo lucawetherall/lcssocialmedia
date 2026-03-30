@@ -4,7 +4,6 @@
 // Uses only built-in Node.js modules — no additional dependencies.
 
 import { createInterface } from 'readline';
-import { randomBytes } from 'crypto';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 import { join, dirname } from 'path';
@@ -102,7 +101,7 @@ const keys = [
     name: 'TOKEN_EXPIRY_LINKEDIN',
     section: 'Token Expiry Tracking',
     description: 'LinkedIn token expiry date.',
-    hint: 'YYYY-MM-DD format. /health endpoint warns 7 days before expiry.',
+    hint: 'YYYY-MM-DD format. /status command warns 7 days before expiry.',
     validate: isDate,
     validateMsg: 'Must be YYYY-MM-DD format',
     required: false,
@@ -112,28 +111,28 @@ const keys = [
     name: 'TOKEN_EXPIRY_META',
     section: 'Token Expiry Tracking',
     description: 'Meta (Facebook/Instagram) token expiry date.',
-    hint: 'YYYY-MM-DD format. /health endpoint warns 7 days before expiry.',
+    hint: 'YYYY-MM-DD format. /status command warns 7 days before expiry.',
     validate: isDate,
     validateMsg: 'Must be YYYY-MM-DD format',
     required: false,
     default: defaultExpiryDate,
   },
   {
-    name: 'DASHBOARD_PORT',
-    section: 'Dashboard',
-    description: 'Port for the Express dashboard server.',
-    validate: isNumeric,
-    required: false,
-    default: () => '3000',
+    name: 'TELEGRAM_BOT_TOKEN',
+    section: 'Telegram Bot',
+    description: 'Telegram bot token for post previews and approval.',
+    hint: 'Message @BotFather on Telegram → /newbot → follow the prompts → copy the token.',
+    validate: isNonEmpty,
+    required: true,
   },
   {
-    name: 'CF_ACCESS_ENABLED',
-    section: 'Cloudflare Access',
-    description: 'Enable Cloudflare Access JWT verification.',
-    hint: 'Set to "true" only if using Cloudflare Access. Leave "false" for DuckDNS setups.',
-    validate: isAny,
-    required: false,
-    default: () => 'false',
+    name: 'TELEGRAM_CHAT_ID',
+    section: 'Telegram Bot',
+    description: 'Your Telegram chat ID (the bot only responds to this chat).',
+    hint: 'Message @userinfobot on Telegram to find your numeric chat ID.',
+    validate: isNumeric,
+    validateMsg: 'Must be a numeric chat ID',
+    required: true,
   },
 ];
 
@@ -168,14 +167,13 @@ function loadExistingEnv() {
 function detectPuppeteerPath() {
   const cpuArch = arch();
   if (cpuArch === 'arm64' || cpuArch === 'arm') {
-    // ARM systems (e.g. Oracle Cloud Ampere A1) need system Chromium
     const paths = ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/snap/bin/chromium'];
     for (const p of paths) {
       if (existsSync(p)) return p;
     }
-    return '/usr/bin/chromium-browser'; // Default — setup.sh will install it
+    return '/usr/bin/chromium-browser';
   }
-  return ''; // x86: use Puppeteer's bundled Chrome
+  return '';
 }
 
 // ── Main ──
@@ -247,27 +245,6 @@ async function main() {
     if (value) values[key.name] = value;
   }
 
-  // Auto-generate API_KEY
-  console.log('\n── Automation API Key ──');
-  const existingApiKey = merge ? existing.API_KEY : undefined;
-  if (existingApiKey) {
-    console.log(`Existing API_KEY found: ${existingApiKey.slice(0, 8)}...`);
-    const regen = await ask('Generate a new one? (y/N) ');
-    if (regen.trim().toLowerCase() === 'y') {
-      values.API_KEY = randomBytes(32).toString('hex');
-      console.log(`\n  NEW API_KEY: ${values.API_KEY}`);
-    } else {
-      values.API_KEY = existingApiKey;
-    }
-  } else {
-    values.API_KEY = randomBytes(32).toString('hex');
-    console.log(`\n  Generated API_KEY: ${values.API_KEY}`);
-  }
-
-  console.log('\n  ╔═══════════════════════════════════════════════════════════╗');
-  console.log('  ║  SAVE THIS — you need it for GitHub Actions secrets!     ║');
-  console.log('  ╚═══════════════════════════════════════════════════════════╝');
-
   // Detect Puppeteer path for ARM
   const puppeteerPath = detectPuppeteerPath();
   if (puppeteerPath) {
@@ -303,14 +280,9 @@ async function main() {
     `TOKEN_EXPIRY_LINKEDIN=${values.TOKEN_EXPIRY_LINKEDIN || ''}`,
     `TOKEN_EXPIRY_META=${values.TOKEN_EXPIRY_META || ''}`,
     '',
-    '# ── Dashboard ──',
-    `DASHBOARD_PORT=${values.DASHBOARD_PORT || '3000'}`,
-    `API_KEY=${values.API_KEY}`,
-    '',
-    '# ── Cloudflare Access ──',
-    `CF_ACCESS_ENABLED=${values.CF_ACCESS_ENABLED || 'false'}`,
-    `CF_ACCESS_TEAM_DOMAIN=${values.CF_ACCESS_TEAM_DOMAIN || ''}`,
-    `CF_ACCESS_AUD=${values.CF_ACCESS_AUD || ''}`,
+    '# ── Telegram Bot ──',
+    `TELEGRAM_BOT_TOKEN=${values.TELEGRAM_BOT_TOKEN || ''}`,
+    `TELEGRAM_CHAT_ID=${values.TELEGRAM_CHAT_ID || ''}`,
     '',
     ...(values.PUPPETEER_EXECUTABLE_PATH
       ? ['# ── Puppeteer (ARM) ──', `PUPPETEER_EXECUTABLE_PATH=${values.PUPPETEER_EXECUTABLE_PATH}`, '']
@@ -328,15 +300,15 @@ async function main() {
   console.log('');
   console.log('Next steps:');
   console.log('');
-  console.log('  1. Set GitHub Actions secrets (Repo → Settings → Secrets → Actions):');
-  console.log(`     DASHBOARD_URL = https://YOUR-SUBDOMAIN.duckdns.org`);
-  console.log(`     API_KEY       = ${values.API_KEY}`);
+  console.log('  1. Start the Telegram bot:');
+  console.log('     npm start');
   console.log('');
-  console.log('  2. Start the dashboard locally to test:');
-  console.log('     npm run dashboard');
+  console.log('  2. Open Telegram and send /generate to your bot');
   console.log('');
-  console.log('  3. Deploy to your VPS:');
-  console.log('     sudo bash scripts/setup.sh');
+  console.log('  3. For always-on deployment, use pm2:');
+  console.log('     npx pm2 start telegram-bot.js --name lcs-bot');
+  console.log('     npx pm2 startup');
+  console.log('     npx pm2 save');
   console.log('');
 
   rl.close();
