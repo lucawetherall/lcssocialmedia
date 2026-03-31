@@ -28,6 +28,7 @@ import {
   closeBrowser,
   DATA_DIR,
 } from './bot-actions.js';
+import { checkAndRefreshTokens } from './utils/token-refresh.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -181,6 +182,7 @@ bot.command('start', (ctx) => {
     '/generate N — Generate N posts (max 5)',
     '/pending — Show draft/approved/scheduled posts',
     '/status — Post counts & token warnings',
+    '/reauth — Re-authenticate LinkedIn or Meta tokens',
     '/help — Show this message',
   ].join('\n'));
 });
@@ -193,6 +195,7 @@ bot.command('help', (ctx) => {
     '/generate N — Generate N posts (max 5)',
     '/pending — Show draft/approved/scheduled posts',
     '/status — Post counts & token warnings',
+    '/reauth — Re-authenticate LinkedIn or Meta tokens',
   ].join('\n'));
 });
 
@@ -529,6 +532,74 @@ cron.schedule('*/5 * * * *', async () => {
     bot.telegram.sendMessage(CHAT_ID, msg).catch(console.error);
   });
 });
+
+// ── /reauth command — re-authenticate platforms via setup wizard ──
+
+bot.command('reauth', async (ctx) => {
+  const args = ctx.message.text.split(/\s+/);
+  const platform = (args[1] || '').toLowerCase();
+
+  if (!platform || !['linkedin', 'meta', 'all'].includes(platform)) {
+    await ctx.reply([
+      'Usage: /reauth <platform>',
+      '',
+      '  /reauth linkedin — Re-authenticate LinkedIn',
+      '  /reauth meta — Re-authenticate Facebook & Instagram',
+      '  /reauth all — Re-authenticate all platforms',
+      '',
+      'This starts the setup wizard temporarily so you can complete the OAuth flow in your browser.',
+    ].join('\n'));
+    return;
+  }
+
+  try {
+    // Dynamically import and start the setup wizard server
+    const { server, PORT } = await import('./scripts/setup-wizard/server.js');
+
+    const step = platform === 'linkedin' ? '#step-3'
+               : platform === 'meta' ? '#step-4'
+               : '';
+    const url = `http://localhost:${PORT}/${step}`;
+
+    await ctx.reply(
+      `Setup wizard started. Open this link to re-authenticate:\n\n${url}\n\nThe wizard will close automatically after 10 minutes.`
+    );
+
+    // Auto-close after 10 minutes
+    setTimeout(() => {
+      try { server.close(); } catch { /* already closed */ }
+    }, 10 * 60 * 1000);
+
+    // Close when a new token is saved (check every 10s)
+    const checkInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`http://localhost:${PORT}/api/status`);
+        if (!res.ok) {
+          clearInterval(checkInterval);
+          return;
+        }
+      } catch {
+        clearInterval(checkInterval);
+      }
+    }, 10000);
+  } catch (err) {
+    await ctx.reply(`Failed to start setup wizard: ${err.message}`);
+  }
+});
+
+// ── Cron: daily token refresh check ──
+
+cron.schedule('0 8 * * *', async () => {
+  console.log('Cron: checking token expiry...');
+  await checkAndRefreshTokens((platform, message) => {
+    bot.telegram.sendMessage(CHAT_ID, `Token refresh — ${platform}: ${message}`).catch(console.error);
+  });
+});
+
+// Also check on startup
+checkAndRefreshTokens((platform, message) => {
+  bot.telegram.sendMessage(CHAT_ID, `Token refresh — ${platform}: ${message}`).catch(console.error);
+}).catch(console.error);
 
 // ── Graceful shutdown ──
 

@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "setup": "node scripts/setup-env.js"
+    "setup": "node scripts/setup-wizard/server.js",
+    "setup:cli": "node scripts/setup-env.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",
