@@ -39,30 +39,23 @@ Fully automated carousel/infographic post generation for **The London Choral Ser
 npm install
 ```
 
-### 2. Configure environment variables
-
-Run the interactive setup wizard:
+### 2. Run the setup wizard
 
 ```bash
 npm run setup
 ```
 
-Or copy `.env.example` to `.env` and fill in manually:
+This opens a guided web wizard in your browser that walks you through all 5 steps:
 
-```bash
-cp .env.example .env
-```
+1. **Telegram Bot** — create via @BotFather (3 min)
+2. **Gemini AI** — free API key, no credit card (2 min)
+3. **Image Hosting** — free imgbb account (2 min)
+4. **LinkedIn** — guided OAuth flow, auto-detects your Company Page (15 min)
+5. **Facebook & Instagram** — guided OAuth flow, auto-detects Page + IG account (15 min)
 
-Required keys:
-- `GEMINI_API_KEY` — free from https://aistudio.google.com/apikey (no credit card needed)
-- `LINKEDIN_ACCESS_TOKEN` — from LinkedIn Developer Portal
-- `LINKEDIN_ORG_ID` — your LinkedIn Company Page URN
-- `FB_PAGE_ACCESS_TOKEN` — from Meta Developer Portal (manages both FB + IG)
-- `FB_PAGE_ID` — your Facebook Page ID
-- `IG_USER_ID` — your Instagram Professional Account ID
-- `IMGBB_API_KEY` — free image hosting for Instagram (get at api.imgbb.com)
-- `TELEGRAM_BOT_TOKEN` — create a bot via @BotFather on Telegram
-- `TELEGRAM_CHAT_ID` — your chat ID (message @userinfobot to find it)
+Each step validates your credentials in real-time and shows green/red status. You can skip any platform you don't use.
+
+For advanced users, a CLI fallback is available: `npm run setup:cli`
 
 ### 3. Start the bot
 
@@ -80,6 +73,7 @@ Then open Telegram and send `/generate` to your bot.
 | `/generate N` | Generate N posts (max 5) |
 | `/pending` | List all draft/approved/scheduled posts |
 | `/status` | Post counts, token expiry warnings |
+| `/reauth <platform>` | Re-authenticate LinkedIn or Meta (opens wizard) |
 | `/help` | Show available commands |
 
 ### 5. Approval workflow

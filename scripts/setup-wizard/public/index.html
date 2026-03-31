@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LCS Social Media — Setup</title>
+<style>
+  :root {
+    --navy: #1a1a2e;
+    --gold: #c9a84c;
+    --cream: #f5f0e8;
+    --green: #22c55e;
+    --red: #ef4444;
+    --gray: #64748b;
+    --light: #f8f9fa;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--light);
+    color: var(--navy);
+    line-height: 1.6;
+  }
+
+  .container {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 32px 20px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  header p {
+    color: var(--gray);
+    font-size: 14px;
+    margin-top: 4px;
+  }
+
+  /* Progress bar */
+  .progress {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 32px;
+  }
+
+  .progress-step {
+    flex: 1;
+    height: 4px;
+    background: #e2e8f0;
+    border-radius: 2px;
+    transition: background 0.3s;
+  }
+
+  .progress-step.done { background: var(--green); }
+  .progress-step.active { background: var(--gold); }
+  .progress-step.skipped { background: #cbd5e1; }
+
+  /* Steps */
+  .step {
+    display: none;
+    background: white;
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+  }
+
+  .step.active { display: block; }
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .step h2 {
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .step-number {
+    font-size: 13px;
+    color: var(--gray);
+  }
+
+  .instructions {
+    background: var(--cream);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+
+  .instructions ol {
+    padding-left: 20px;
+  }
+
+  .instructions li {
+    margin-bottom: 6px;
+  }
+
+  .instructions a {
+    color: var(--gold);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .instructions a:hover {
+    text-decoration: underline;
+  }
+
+  /* Form fields */
+  .field {
+    margin-bottom: 16px;
+  }
+
+  .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    transition: border-color 0.2s;
+    background: white;
+  }
+
+  .field input:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+
+  .field input.valid { border-color: var(--green); }
+  .field input.invalid { border-color: var(--red); }
+
+  .field .hint {
+    font-size: 12px;
+    color: var(--gray);
+    margin-top: 4px;
+  }
+
+  /* Validation status */
+  .validation {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  .validation.success {
+    background: #f0fdf4;
+    color: #166534;
+  }
+
+  .validation.error {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  .validation.loading {
+    background: #fefce8;
+    color: #854d0e;
+  }
+
+  /* Buttons */
+  .actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: var(--navy);
+    color: white;
+    flex: 1;
+  }
+
+  .btn-primary:hover { background: #2a2a4e; }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: #e2e8f0;
+    color: var(--navy);
+  }
+
+  .btn-secondary:hover { background: #cbd5e1; }
+
+  .btn-skip {
+    background: none;
+    color: var(--gray);
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  .btn-skip:hover { color: var(--navy); }
+
+  .btn-oauth {
+    background: var(--gold);
+    color: white;
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  .btn-oauth:hover { background: #b8973f; }
+  .btn-oauth:disabled { background: #94a3b8; cursor: not-allowed; }
+
+  /* Select for choosing org/page */
+  .field select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 15px;
+    background: white;
+    cursor: pointer;
+  }
+
+  .field select:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+
+  /* Complete screen */
+  .complete {
+    text-align: center;
+    padding: 48px 32px;
+  }
+
+  .complete .icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+  }
+
+  .complete h2 {
+    margin-bottom: 8px;
+  }
+
+  .summary {
+    background: var(--cream);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 24px 0;
+    text-align: left;
+  }
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 14px;
+  }
+
+  .summary-row .status-ok { color: var(--green); font-weight: 600; }
+  .summary-row .status-skip { color: var(--gray); }
+
+  .code-block {
+    background: var(--navy);
+    color: var(--cream);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    text-align: left;
+    margin-top: 16px;
+  }
+
+  /* Spinner */
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e2e8f0;
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>LCS Social Media Setup</h1>
+    <p>Configure your social media automation in 5 steps</p>
+  </header>
+
+  <div class="progress" id="progress">
+    <div class="progress-step active" data-step="0"></div>
+    <div class="progress-step" data-step="1"></div>
+    <div class="progress-step" data-step="2"></div>
+    <div class="progress-step" data-step="3"></div>
+    <div class="progress-step" data-step="4"></div>
+  </div>
+
+  <!-- Step 1: Telegram -->
+  <div class="step active" id="step-0">
+    <div class="step-header">
+      <h2>Telegram Bot</h2>
+      <span class="step-number">Step 1 of 5</span>
+    </div>
+    <div class="instructions">
+      <ol>
+        <li>Open Telegram and search for <strong>@BotFather</strong></li>
+        <li>Send <strong>/newbot</strong> and follow the prompts to name your bot</li>
+        <li>Copy the bot token and paste it below</li>
+      </ol>
+    </div>
+    <div class="field">
+      <label>Bot Token</label>
+      <input type="text" id="telegram-token" placeholder="1234567890:ABCdef...">
+    </div>
+    <div class="instructions" style="margin-top: 12px">
+      <ol start="4">
+        <li>Search for <strong>@userinfobot</strong> on Telegram and message it</li>
+        <li>It will reply with your numeric chat ID — paste it below</li>
+      </ol>
+    </div>
+    <div class="field">
+      <label>Your Chat ID</label>
+      <input type="text" id="telegram-chat-id" placeholder="123456789">
+      <div class="hint">Numeric ID only — this restricts the bot to respond only to you</div>
+    </div>
+    <div id="telegram-status"></div>
+    <div class="actions">
+      <button class="btn-primary" onclick="validateAndNext('telegram')">Validate & Continue</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Gemini -->
+  <div class="step" id="step-1">
+    <div class="step-header">
+      <h2>Gemini AI</h2>
+      <span class="step-number">Step 2 of 5</span>
+    </div>
+    <div class="instructions">
+      <ol>
+        <li><a href="https://aistudio.google.com/apikey" target="_blank">Click here to open Google AI Studio</a></li>
+        <li>Sign in with your Google account</li>
+        <li>Click <strong>"Create API Key"</strong> and copy it</li>
+      </ol>
+      <p style="margin-top: 8px; font-size: 13px; color: #666;">Completely free — no credit card needed. 15 requests/min.</p>
+    </div>
+    <div class="field">
+      <label>Gemini API Key</label>
+      <input type="text" id="gemini-key" placeholder="AIza...">
+    </div>
+    <div id="gemini-status"></div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="goBack()">Back</button>
+      <button class="btn-primary" onclick="validateAndNext('gemini')">Validate & Continue</button>
+    </div>
+  </div>
+
+  <!-- Step 3: imgbb -->
+  <div class="step" id="step-2">
+    <div class="step-header">
+      <h2>Image Hosting</h2>
+      <span class="step-number">Step 3 of 5</span>
+    </div>
+    <div class="instructions">
+      <ol>
+        <li><a href="https://api.imgbb.com/" target="_blank">Click here to open imgbb</a></li>
+        <li>Create a free account (or sign in)</li>
+        <li>Copy your API key from the dashboard</li>
+      </ol>
+      <p style="margin-top: 8px; font-size: 13px; color: #666;">Free image hosting — used temporarily so Instagram and Facebook can access your images.</p>
+    </div>
+    <div class="field">
+      <label>imgbb API Key</label>
+      <input type="text" id="imgbb-key" placeholder="abc123def456...">
+    </div>
+    <div id="imgbb-status"></div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="goBack()">Back</button>
+      <button class="btn-primary" onclick="validateAndNext('imgbb')">Validate & Continue</button>
+    </div>
+  </div>
+
+  <!-- Step 4: LinkedIn -->
+  <div class="step" id="step-3">
+    <div class="step-header">
+      <h2>LinkedIn</h2>
+      <span class="step-number">Step 4 of 5</span>
+    </div>
+    <div class="instructions">
+      <ol>
+        <li><a href="https://www.linkedin.com/developers/apps" target="_blank">Click here to open LinkedIn Developer Portal</a></li>
+        <li>Click <strong>"Create App"</strong> — fill in your company name, app name, and logo</li>
+        <li>Go to the <strong>"Auth"</strong> tab and copy your <strong>Client ID</strong> and <strong>Client Secret</strong></li>
+        <li>In the <strong>"Auth"</strong> tab, add this redirect URL:<br>
+          <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:13px;">http://localhost:3456/callback/linkedin</code></li>
+        <li>Go to <strong>"Products"</strong> tab and request access to <strong>"Community Management API"</strong></li>
+      </ol>
+    </div>
+    <div class="field">
+      <label>Client ID</label>
+      <input type="text" id="linkedin-client-id" placeholder="86abc123def456">
+    </div>
+    <div class="field">
+      <label>Client Secret</label>
+      <input type="password" id="linkedin-client-secret" placeholder="Your client secret">
+    </div>
+    <button class="btn-oauth" id="linkedin-connect-btn" onclick="startLinkedInOAuth()">
+      Connect LinkedIn
+    </button>
+    <div id="linkedin-status"></div>
+    <div id="linkedin-org-select" style="display:none">
+      <div class="field">
+        <label>Select Your Company Page</label>
+        <select id="linkedin-org"></select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="goBack()">Back</button>
+      <button class="btn-skip" onclick="skipStep('linkedin')">Skip — I don't use LinkedIn</button>
+      <button class="btn-primary" id="linkedin-next-btn" onclick="nextStep()" disabled>Continue</button>
+    </div>
+  </div>
+
+  <!-- Step 5: Meta -->
+  <div class="step" id="step-4">
+    <div class="step-header">
+      <h2>Facebook & Instagram</h2>
+      <span class="step-number">Step 5 of 5</span>
+    </div>
+    <div class="instructions">
+      <ol>
+        <li><a href="https://developers.facebook.com/apps/" target="_blank">Click here to open Meta Developer Portal</a></li>
+        <li>Click <strong>"Create App"</strong> &rarr; choose <strong>"Business"</strong> type</li>
+        <li>In your app settings, add the product <strong>"Instagram Graph API"</strong></li>
+        <li>Go to <strong>"App Settings" &rarr; "Basic"</strong> and copy your <strong>App ID</strong> and <strong>App Secret</strong></li>
+        <li>Under <strong>"Facebook Login" &rarr; "Settings"</strong>, add this redirect URL:<br>
+          <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:13px;">http://localhost:3456/callback/meta</code></li>
+      </ol>
+    </div>
+    <div class="field">
+      <label>App ID</label>
+      <input type="text" id="meta-app-id" placeholder="123456789012345">
+    </div>
+    <div class="field">
+      <label>App Secret</label>
+      <input type="password" id="meta-app-secret" placeholder="Your app secret">
+    </div>
+    <button class="btn-oauth" id="meta-connect-btn" onclick="startMetaOAuth()">
+      Connect Facebook & Instagram
+    </button>
+    <div id="meta-status"></div>
+    <div id="meta-page-select" style="display:none">
+      <div class="field">
+        <label>Select Your Facebook Page</label>
+        <select id="meta-page"></select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="goBack()">Back</button>
+      <button class="btn-skip" onclick="skipStep('meta')">Skip — I don't use Facebook/Instagram</button>
+      <button class="btn-primary" id="meta-next-btn" onclick="finishSetup()" disabled>Finish Setup</button>
+    </div>
+  </div>
+
+  <!-- Complete -->
+  <div class="step" id="step-complete">
+    <div class="complete">
+      <div class="icon">&#10003;</div>
+      <h2>Setup Complete!</h2>
+      <p>Your configuration has been saved.</p>
+
+      <div class="summary" id="summary"></div>
+
+      <p style="font-size: 14px; color: var(--gray);">Start your bot with:</p>
+      <div class="code-block">npm start</div>
+      <p style="font-size: 14px; color: var(--gray); margin-top: 12px;">Then open Telegram and send <strong>/generate</strong> to your bot.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+
+let currentStep = 0;
+const totalSteps = 5;
+const config = {};
+const skipped = new Set();
+
+// ── Navigation ──
+
+function showStep(n) {
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  if (n === totalSteps) {
+    document.getElementById('step-complete').classList.add('active');
+  } else {
+    document.getElementById(`step-${n}`).classList.add('active');
+  }
+
+  document.querySelectorAll('.progress-step').forEach((s, i) => {
+    s.classList.remove('active', 'done', 'skipped');
+    if (i < n) s.classList.add(skipped.has(i) ? 'skipped' : 'done');
+    else if (i === n) s.classList.add('active');
+  });
+
+  currentStep = n;
+}
+
+function nextStep() {
+  showStep(currentStep + 1);
+}
+
+function goBack() {
+  if (currentStep > 0) showStep(currentStep - 1);
+}
+
+function skipStep(platform) {
+  skipped.add(currentStep);
+  nextStep();
+}
+
+// ── Status display ──
+
+function showStatus(id, type, message) {
+  const el = document.getElementById(id);
+  if (type === 'loading') {
+    el.innerHTML = `<div class="validation loading"><span class="spinner"></span> ${message}</div>`;
+  } else if (type === 'success') {
+    el.innerHTML = `<div class="validation success">&#10003; ${message}</div>`;
+  } else {
+    el.innerHTML = `<div class="validation error">&#10007; ${message}</div>`;
+  }
+}
+
+function clearStatus(id) {
+  document.getElementById(id).innerHTML = '';
+}
+
+// ── API helpers ──
+
+async function api(path, body) {
+  const opts = body
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    : {};
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+// ── Validation + navigation ──
+
+async function validateAndNext(type) {
+  clearStatus(`${type}-status`);
+
+  if (type === 'telegram') {
+    const token = document.getElementById('telegram-token').value.trim();
+    const chatId = document.getElementById('telegram-chat-id').value.trim();
+    if (!token || !chatId) {
+      showStatus('telegram-status', 'error', 'Both fields are required');
+      return;
+    }
+    if (!/^\d+$/.test(chatId)) {
+      showStatus('telegram-status', 'error', 'Chat ID must be numeric');
+      return;
+    }
+    showStatus('telegram-status', 'loading', 'Validating...');
+    try {
+      const result = await api('/api/validate', { type: 'telegram', token });
+      config.TELEGRAM_BOT_TOKEN = token;
+      config.TELEGRAM_CHAT_ID = chatId;
+      showStatus('telegram-status', 'success', `Connected as @${result.botName}`);
+      setTimeout(nextStep, 800);
+    } catch (err) {
+      showStatus('telegram-status', 'error', `Invalid token: ${err.message}`);
+    }
+    return;
+  }
+
+  if (type === 'gemini') {
+    const key = document.getElementById('gemini-key').value.trim();
+    if (!key) {
+      showStatus('gemini-status', 'error', 'API key is required');
+      return;
+    }
+    showStatus('gemini-status', 'loading', 'Validating...');
+    try {
+      await api('/api/validate', { type: 'gemini', key });
+      config.GEMINI_API_KEY = key;
+      showStatus('gemini-status', 'success', 'API key is valid');
+      setTimeout(nextStep, 800);
+    } catch (err) {
+      showStatus('gemini-status', 'error', `Invalid key: ${err.message}`);
+    }
+    return;
+  }
+
+  if (type === 'imgbb') {
+    const key = document.getElementById('imgbb-key').value.trim();
+    if (!key) {
+      showStatus('imgbb-status', 'error', 'API key is required');
+      return;
+    }
+    showStatus('imgbb-status', 'loading', 'Validating...');
+    try {
+      await api('/api/validate', { type: 'imgbb', key });
+      config.IMGBB_API_KEY = key;
+      showStatus('imgbb-status', 'success', 'API key is valid');
+      setTimeout(nextStep, 800);
+    } catch (err) {
+      showStatus('imgbb-status', 'error', `Invalid key: ${err.message}`);
+    }
+    return;
+  }
+}
+
+// ── LinkedIn OAuth ──
+
+let linkedInPollTimer = null;
+
+async function startLinkedInOAuth() {
+  const clientId = document.getElementById('linkedin-client-id').value.trim();
+  const clientSecret = document.getElementById('linkedin-client-secret').value.trim();
+  if (!clientId || !clientSecret) {
+    showStatus('linkedin-status', 'error', 'Both Client ID and Client Secret are required');
+    return;
+  }
+
+  showStatus('linkedin-status', 'loading', 'Opening LinkedIn... Complete the authorization in the new tab.');
+  document.getElementById('linkedin-connect-btn').disabled = true;
+
+  const result = await api('/api/auth/linkedin/start', { clientId, clientSecret });
+  window.open(result.authUrl, '_blank');
+
+  // Poll for result
+  linkedInPollTimer = setInterval(async () => {
+    const data = await api('/api/auth/linkedin/result');
+    if (!data.pending) {
+      clearInterval(linkedInPollTimer);
+      onLinkedInConnected(data, clientId, clientSecret);
+    }
+  }, 2000);
+}
+
+function onLinkedInConnected(data, clientId, clientSecret) {
+  config.LINKEDIN_ACCESS_TOKEN = data.accessToken;
+  config.LINKEDIN_REFRESH_TOKEN = data.refreshToken;
+  config.LINKEDIN_CLIENT_ID = clientId;
+  config.LINKEDIN_CLIENT_SECRET = clientSecret;
+  config.TOKEN_EXPIRY_LINKEDIN = expiryDate(data.expiresIn);
+
+  showStatus('linkedin-status', 'success', 'LinkedIn connected!');
+  document.getElementById('linkedin-connect-btn').disabled = true;
+
+  if (data.orgs && data.orgs.length > 0) {
+    const select = document.getElementById('linkedin-org');
+    select.innerHTML = '';
+    for (const org of data.orgs) {
+      const opt = document.createElement('option');
+      opt.value = org.urn;
+      opt.textContent = org.name;
+      select.appendChild(opt);
+    }
+    document.getElementById('linkedin-org-select').style.display = 'block';
+    config.LINKEDIN_ORG_ID = data.orgs[0].urn;
+    select.addEventListener('change', () => { config.LINKEDIN_ORG_ID = select.value; });
+  } else {
+    // No orgs found — ask for manual entry
+    document.getElementById('linkedin-org-select').style.display = 'block';
+    const container = document.getElementById('linkedin-org-select');
+    container.innerHTML = `
+      <div class="field">
+        <label>Company Page URN</label>
+        <input type="text" id="linkedin-org-manual" placeholder="urn:li:organization:12345678"
+               oninput="config.LINKEDIN_ORG_ID = this.value.trim()">
+        <div class="hint">Find the number in your LinkedIn Company Page URL</div>
+      </div>`;
+  }
+
+  document.getElementById('linkedin-next-btn').disabled = false;
+}
+
+// ── Meta OAuth ──
+
+let metaPollTimer = null;
+
+async function startMetaOAuth() {
+  const appId = document.getElementById('meta-app-id').value.trim();
+  const appSecret = document.getElementById('meta-app-secret').value.trim();
+  if (!appId || !appSecret) {
+    showStatus('meta-status', 'error', 'Both App ID and App Secret are required');
+    return;
+  }
+
+  showStatus('meta-status', 'loading', 'Opening Facebook... Complete the authorization in the new tab.');
+  document.getElementById('meta-connect-btn').disabled = true;
+
+  const result = await api('/api/auth/meta/start', { appId, appSecret });
+  window.open(result.authUrl, '_blank');
+
+  metaPollTimer = setInterval(async () => {
+    const data = await api('/api/auth/meta/result');
+    if (!data.pending) {
+      clearInterval(metaPollTimer);
+      onMetaConnected(data, appId, appSecret);
+    }
+  }, 2000);
+}
+
+function onMetaConnected(data, appId, appSecret) {
+  config.META_APP_ID = appId;
+  config.META_APP_SECRET = appSecret;
+  config.TOKEN_EXPIRY_META = expiryDate(data.expiresIn);
+
+  if (data.pages && data.pages.length > 0) {
+    const select = document.getElementById('meta-page');
+    select.innerHTML = '';
+    for (const page of data.pages) {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify(page);
+      opt.textContent = `${page.name}${page.igUserId ? ' (+ Instagram)' : ''}`;
+      select.appendChild(opt);
+    }
+    document.getElementById('meta-page-select').style.display = 'block';
+
+    // Select first page by default
+    selectMetaPage(data.pages[0]);
+    select.addEventListener('change', () => {
+      selectMetaPage(JSON.parse(select.value));
+    });
+
+    showStatus('meta-status', 'success', `Connected! Found ${data.pages.length} page(s).`);
+  } else {
+    showStatus('meta-status', 'error', 'No Facebook Pages found. Make sure your app has page access.');
+    document.getElementById('meta-connect-btn').disabled = false;
+    return;
+  }
+
+  document.getElementById('meta-next-btn').disabled = false;
+}
+
+function selectMetaPage(page) {
+  config.FB_PAGE_ACCESS_TOKEN = page.accessToken;
+  config.FB_PAGE_ID = page.id;
+  config.IG_USER_ID = page.igUserId || '';
+}
+
+// ── Finish ──
+
+async function finishSetup() {
+  showStatus('meta-status', 'loading', 'Saving configuration...');
+
+  try {
+    await api('/api/save', { values: config });
+    buildSummary();
+    showStep(totalSteps);
+  } catch (err) {
+    showStatus('meta-status', 'error', `Failed to save: ${err.message}`);
+  }
+}
+
+function buildSummary() {
+  const rows = [
+    ['Telegram Bot', config.TELEGRAM_BOT_TOKEN ? 'ok' : 'skip'],
+    ['Gemini AI', config.GEMINI_API_KEY ? 'ok' : 'skip'],
+    ['Image Hosting', config.IMGBB_API_KEY ? 'ok' : 'skip'],
+    ['LinkedIn', config.LINKEDIN_ACCESS_TOKEN ? 'ok' : 'skip'],
+    ['Facebook', config.FB_PAGE_ACCESS_TOKEN ? 'ok' : 'skip'],
+    ['Instagram', config.IG_USER_ID ? 'ok' : 'skip'],
+  ];
+
+  const html = rows.map(([name, status]) => {
+    const cls = status === 'ok' ? 'status-ok' : 'status-skip';
+    const label = status === 'ok' ? 'Connected' : 'Skipped';
+    return `<div class="summary-row"><span>${name}</span><span class="${cls}">${label}</span></div>`;
+  }).join('');
+
+  document.getElementById('summary').innerHTML = html;
+}
+
+// ── Helpers ──
+
+function expiryDate(seconds) {
+  if (!seconds) return '';
+  const d = new Date();
+  d.setSeconds(d.getSeconds() + seconds);
+  return d.toISOString().split('T')[0];
+}
+
+// ── Init: check existing config ──
+
+(async function init() {
+  try {
+    const status = await api('/api/status');
+    if (status.existing) {
+      // Pre-fill any existing values
+      if (status.values.TELEGRAM_CHAT_ID) {
+        document.getElementById('telegram-chat-id').value = status.values.TELEGRAM_CHAT_ID;
+      }
+      if (status.values.LINKEDIN_ORG_ID) {
+        config.LINKEDIN_ORG_ID = status.values.LINKEDIN_ORG_ID;
+      }
+      if (status.values.LINKEDIN_CLIENT_ID) {
+        document.getElementById('linkedin-client-id').value = status.values.LINKEDIN_CLIENT_ID;
+      }
+      if (status.values.META_APP_ID) {
+        document.getElementById('meta-app-id').value = status.values.META_APP_ID;
+      }
+      if (status.values.FB_PAGE_ID) {
+        config.FB_PAGE_ID = status.values.FB_PAGE_ID;
+      }
+    }
+  } catch { /* fresh start */ }
+})();
+</script>
+</body>
+</html>
