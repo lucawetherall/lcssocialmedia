@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  LCS Carousel Bot — macOS launchd service
+  Optimized for always-on Mac Mini: runs at low CPU/IO priority
+  so the bot never interferes with foreground work.
+
+  SETUP:
+  1. Copy this file to ~/Library/LaunchAgents/
+  2. Edit the paths below to match your installation
+  3. Load:  launchctl load ~/Library/LaunchAgents/com.lcs.carousel-bot.plist
+  4. Check: launchctl list | grep lcs
+
+  MANAGE:
+    launchctl stop  com.lcs.carousel-bot
+    launchctl start com.lcs.carousel-bot
+    launchctl unload ~/Library/LaunchAgents/com.lcs.carousel-bot.plist
+-->
+<dict>
+    <key>Label</key>
+    <string>com.lcs.carousel-bot</string>
+
+    <key>WorkingDirectory</key>
+    <!-- CHANGE THIS to your repo path -->
+    <string>/Users/YOU/lcssocialmedia</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- CHANGE THIS to your node path (run: which node) -->
+        <string>/usr/local/bin/node</string>
+        <string>telegram-bot.js</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>NODE_ENV</key>
+        <string>production</string>
+    </dict>
+
+    <!-- Start on login -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Auto-restart on crash -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- RESOURCE OPTIMIZATION: keeps bot non-intrusive -->
+
+    <!-- CPU priority: 15 = low (range -20 to 20, default 0) -->
+    <key>Nice</key>
+    <integer>15</integer>
+
+    <!-- Deprioritize disk I/O so renders don't slow other apps -->
+    <key>LowPriorityIO</key>
+    <true/>
+
+    <!-- macOS QoS: Background = lowest priority tier -->
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Prevent crash-loop from hammering resources -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <!-- Logging -->
+    <key>StandardOutPath</key>
+    <!-- CHANGE THIS to your preferred log path -->
+    <string>/Users/YOU/lcssocialmedia/logs/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/YOU/lcssocialmedia/logs/stderr.log</string>
+</dict>
+</plist>

@@ -17,6 +17,12 @@ const db = new Database(DB_PATH);
 
 // Enable WAL mode for better concurrent read performance
 db.pragma('journal_mode = WAL');
+// NORMAL sync is safe with WAL and reduces disk I/O (fsync only on checkpoint, not every commit)
+db.pragma('synchronous = NORMAL');
+// Store temp tables in memory instead of disk
+db.pragma('temp_store = MEMORY');
+// Allow up to 4MB page cache (~1000 pages) — reduces disk reads for repeated queries
+db.pragma('cache_size = -4000');
 
 // ── Schema ──
 
@@ -167,6 +173,23 @@ export const queries = {
     'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'
   ),
   getAllSettings: db.prepare('SELECT * FROM settings'),
+
+  // Status (pre-compiled — avoids re-preparing on every /status call)
+  getLastPublished: db.prepare(
+    "SELECT updated_at FROM posts WHERE status = 'published' ORDER BY updated_at DESC LIMIT 1"
+  ),
+  getPendingCount: db.prepare(
+    "SELECT COUNT(*) as count FROM posts WHERE status IN ('approved', 'scheduled')"
+  ),
+  getNextScheduled: db.prepare(
+    "SELECT scheduled_at FROM posts WHERE status = 'scheduled' ORDER BY scheduled_at ASC LIMIT 1"
+  ),
+  getFailedCount: db.prepare(
+    "SELECT COUNT(*) as count FROM posts WHERE status = 'failed'"
+  ),
+  getDraftCount: db.prepare(
+    "SELECT COUNT(*) as count FROM posts WHERE status = 'draft'"
+  ),
 };
 
 export default db;
