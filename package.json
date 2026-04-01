@@ -12,7 +12,12 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "setup": "node scripts/setup-wizard/server.js",
-    "setup:cli": "node scripts/setup-env.js"
+    "setup:cli": "node scripts/setup-env.js",
+    "install-service": "node scripts/install-service.js",
+    "service:status": "launchctl list | grep lcs",
+    "service:logs": "tail -f logs/stdout.log",
+    "service:stop": "launchctl stop com.lcs.carousel-bot",
+    "service:start": "launchctl start com.lcs.carousel-bot"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",
