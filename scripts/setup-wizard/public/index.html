@@ -500,13 +500,19 @@
     <div class="complete">
       <div class="icon">&#10003;</div>
       <h2>Setup Complete!</h2>
-      <p>Your configuration has been saved.</p>
+      <p>Your credentials have been saved to <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:13px;">.env</code></p>
 
       <div class="summary" id="summary"></div>
 
-      <p style="font-size: 14px; color: var(--gray);">Start your bot with:</p>
+      <p style="font-size: 15px; font-weight: 600; margin: 24px 0 8px;">Next — install as a background service:</p>
+      <div class="code-block">npm run install-service</div>
+      <p style="font-size: 13px; color: var(--gray); margin-top: 8px;">Registers the bot with macOS launchd so it starts on login and auto-restarts on crash.</p>
+
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+
+      <p style="font-size: 13px; color: var(--gray);">Or start manually for testing:</p>
       <div class="code-block">npm start</div>
-      <p style="font-size: 14px; color: var(--gray); margin-top: 12px;">Then open Telegram and send <strong>/generate</strong> to your bot.</p>
+      <p style="font-size: 13px; color: var(--gray); margin-top: 10px;">Then open Telegram and send <strong>/generate</strong> to your bot.</p>
     </div>
   </div>
 </div>
