@@ -26,7 +26,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Source Serif 4', sans-serif;
+    font-family: 'Source Serif 4', Georgia, serif;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 2.5px;
@@ -60,6 +60,7 @@
     line-height: 1;
     user-select: none;
     pointer-events: none;
+    z-index: 0;
   }
 
   .slide-hook .category-label {
@@ -118,6 +119,7 @@
     line-height: 1;
     user-select: none;
     pointer-events: none;
+    z-index: 0;
   }
 
   .slide-content .tip-label {
@@ -255,6 +257,14 @@
   <div id="slide"></div>
 
   <script>
+    function esc(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
     function renderSlide(slide, index, total) {
       const el = document.getElementById('slide');
 
@@ -262,9 +272,9 @@
         el.className = 'slide-hook';
         el.innerHTML = `
           <div class="top-band">The London Choral Service</div>
-          <div class="ghost-number">${total - 2}</div>
-          <div class="category-label">${slide.footnote || 'Choral Music'}</div>
-          <h1>${slide.headline}</h1>
+          <div class="ghost-number">${total - 2}</div><!-- total - 2 = content slide count (excludes hook + cta) -->
+          <div class="category-label">${esc(slide.footnote) || 'Choral Music'}</div>
+          <h1>${esc(slide.headline)}</h1>
           <div class="divider"></div>
         `;
       } else if (slide.type === 'cta') {
@@ -273,9 +283,9 @@
           <div class="top-band">The London Choral Service</div>
           <div class="deco-circle"></div>
           <div class="ready-label">Ready to Book?</div>
-          <h2>${slide.headline}</h2>
+          <h2>${esc(slide.headline)}</h2>
           <div class="divider"></div>
-          <p>${slide.body}</p>
+          <p>${esc(slide.body)}</p>
           <div class="cta-url">londonchoralservice.com</div>
         `;
       } else {
@@ -284,9 +294,9 @@
           <div class="top-band">The London Choral Service</div>
           <div class="ghost-number">${index}</div>
           <div class="tip-label">Tip ${index}</div>
-          <h2>${slide.headline}</h2>
+          <h2>${esc(slide.headline)}</h2>
           <div class="divider"></div>
-          <p>${slide.body}</p>
+          <p>${esc(slide.body)}</p>
         `;
       }
     }
