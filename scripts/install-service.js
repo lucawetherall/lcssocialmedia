@@ -29,13 +29,7 @@ if (!existsSync(ENV_PATH)) {
   process.exit(1);
 }
 
-let nodeBin;
-try {
-  nodeBin = execSync('which node', { encoding: 'utf8' }).trim();
-} catch {
-  console.error('\n  Could not locate the node binary. Is Node.js in your PATH?\n');
-  process.exit(1);
-}
+const nodeBin = process.execPath;
 
 console.log('\n  LCS Carousel Bot — Service Installer');
 console.log('  ─────────────────────────────────────');

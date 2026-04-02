@@ -9,8 +9,8 @@ import { fileURLToPath } from 'url';
 import { CONFIG } from './config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMPLATE_DIR = path.join(__dirname, '..', 'templates');
-const OUTPUT_DIR = path.join(__dirname, '..', 'output');
+const TEMPLATE_DIR = __dirname;
+const OUTPUT_DIR = path.join(__dirname, 'output');
 
 export async function renderCarousel(content, templateName = 'listicle') {
   // Ensure output directory exists
