@@ -183,6 +183,7 @@
     border-radius: 50%;
     opacity: 0.25;
     pointer-events: none;
+    z-index: 0;
   }
 
   .slide-cta .ready-label {
@@ -264,8 +265,8 @@
         el.className = 'slide-hook';
         el.innerHTML = `
           <div class="top-band">The London Choral Service</div>
-          <div class="ghost-number">${total - 2}</div><!-- total - 2 = content slide count (excludes hook + cta) -->
-          <div class="category-label">${esc(slide.footnote) || 'Choral Music'}</div>
+          <div class="ghost-number">${esc(total - 2)}</div><!-- total - 2 = content slide count (excludes hook + cta) -->
+          <div class="category-label">${esc(slide.footnote || 'Choral Music')}</div>
           <h1>${esc(slide.headline)}</h1>
           <div class="divider"></div>
         `;
