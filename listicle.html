@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1080">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -17,257 +17,286 @@
     color: #1a1a2e;
   }
 
+  /* ── SHARED: TOP BAND ── */
+  .top-band {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 32px;
+    background: #1a1a2e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: #c9a84c;
+    z-index: 10;
+  }
+
   /* ── HOOK SLIDE ── */
   .slide-hook {
     width: 1080px;
     height: 1350px;
+    background: #f5f0e8;
+    position: relative;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    align-items: center;
-    text-align: center;
-    padding: 80px;
-    background:
-      radial-gradient(ellipse at 20% 80%, rgba(201, 168, 76, 0.1) 0%, transparent 50%),
-      radial-gradient(ellipse at 80% 20%, rgba(201, 168, 76, 0.08) 0%, transparent 50%),
-      linear-gradient(175deg, #f5f0e8 0%, #ede6d8 100%);
-    position: relative;
-    color: #1a1a2e;
+    align-items: flex-start;
+    padding: 100px 90px 80px;
   }
 
-  .slide-hook::before {
-    content: '';
+  .slide-hook .ghost-number {
     position: absolute;
-    top: 40px;
-    left: 40px;
-    right: 40px;
-    bottom: 40px;
-    border: 1px solid rgba(201, 168, 76, 0.35);
+    bottom: -80px;
+    right: -20px;
+    font-family: 'Playfair Display', serif;
+    font-size: 520px;
+    font-weight: 700;
+    color: rgba(26, 26, 46, 0.07);
+    line-height: 1;
+    user-select: none;
     pointer-events: none;
+    z-index: 0;
   }
 
-  .slide-hook .logo-mark {
-    font-family: 'Cormorant Garamond', serif;
+  .slide-hook .category-label {
+    font-family: 'Source Serif 4', serif;
     font-size: 22px;
-    font-weight: 300;
-    letter-spacing: 6px;
+    font-weight: 600;
+    letter-spacing: 3px;
     text-transform: uppercase;
-    color: rgba(201, 168, 76, 0.8);
-    margin-bottom: 60px;
-  }
-
-  .slide-hook .icon {
-    font-size: 64px;
-    margin-bottom: 40px;
-    filter: grayscale(0.2);
+    color: #8b1a1a;
+    margin-bottom: 28px;
+    position: relative;
+    z-index: 1;
   }
 
   .slide-hook h1 {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 72px;
+    font-family: 'Playfair Display', serif;
+    font-size: 88px;
     font-weight: 700;
-    line-height: 1.15;
+    line-height: 1.1;
     color: #1a1a2e;
     max-width: 860px;
-    margin-bottom: 40px;
+    margin-bottom: 44px;
+    position: relative;
+    z-index: 1;
   }
 
-  .slide-hook .swipe-cue {
-    position: absolute;
-    bottom: 70px;
-    font-family: 'Source Serif 4', serif;
-    font-size: 18px;
-    font-weight: 300;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: rgba(201, 168, 76, 0.6);
-  }
-
-  .slide-hook .swipe-cue::after {
-    content: ' →';
+  .slide-hook .divider {
+    width: 80px;
+    height: 4px;
+    background: #c9a84c;
+    position: relative;
+    z-index: 1;
   }
 
   /* ── CONTENT SLIDE ── */
   .slide-content {
     width: 1080px;
     height: 1350px;
+    background: #f5f0e8;
+    position: relative;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     justify-content: center;
     padding: 80px 90px;
-    position: relative;
-    background:
-      radial-gradient(ellipse at 50% 0%, rgba(201, 168, 76, 0.04) 0%, transparent 40%),
-      #f5f0e8;
-    color: #1a1a2e;
   }
 
-  .slide-content::before {
-    content: '';
+  .slide-content .ghost-number {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 8px;
-    height: 100%;
-    background: linear-gradient(180deg, #c9a84c 0%, #8b6914 100%);
-  }
-
-  .slide-content .slide-number {
+    top: 10px;
+    left: -15px;
     font-family: 'Playfair Display', serif;
-    font-size: 120px;
+    font-size: 340px;
     font-weight: 700;
-    color: rgba(201, 168, 76, 0.15);
-    position: absolute;
-    top: 50px;
-    right: 70px;
+    color: rgba(26, 26, 46, 0.08);
     line-height: 1;
+    user-select: none;
+    pointer-events: none;
+    z-index: 0;
   }
 
-  .slide-content .icon {
-    font-size: 56px;
-    margin-bottom: 30px;
+  .slide-content .tip-label {
+    font-family: 'Source Serif 4', serif;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #c9a84c;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 1;
   }
 
   .slide-content h2 {
     font-family: 'Playfair Display', serif;
-    font-size: 54px;
-    font-weight: 600;
-    line-height: 1.2;
+    font-size: 64px;
+    font-weight: 700;
+    line-height: 1.15;
     color: #1a1a2e;
-    margin-bottom: 30px;
-    max-width: 780px;
+    max-width: 860px;
+    margin-bottom: 32px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .slide-content .divider {
+    width: 60px;
+    height: 3px;
+    background: #c9a84c;
+    margin-bottom: 32px;
+    position: relative;
+    z-index: 1;
   }
 
   .slide-content p {
     font-family: 'Source Serif 4', serif;
-    font-size: 32px;
+    font-size: 34px;
     font-weight: 300;
-    line-height: 1.55;
-    color: #3a3a4e;
-    max-width: 780px;
-  }
-
-  .slide-content .brand-line {
-    position: absolute;
-    bottom: 60px;
-    left: 90px;
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 18px;
-    font-weight: 300;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-    color: rgba(201, 168, 76, 0.5);
+    line-height: 1.6;
+    color: #444;
+    max-width: 840px;
+    position: relative;
+    z-index: 1;
   }
 
   /* ── CTA SLIDE ── */
   .slide-cta {
     width: 1080px;
     height: 1350px;
+    background: #f5f0e8;
+    position: relative;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     text-align: center;
-    padding: 80px;
-    background:
-      radial-gradient(ellipse at 50% 50%, rgba(201, 168, 76, 0.12) 0%, transparent 60%),
-      linear-gradient(175deg, #f5f0e8 0%, #ede6d8 100%);
-    position: relative;
-    color: #1a1a2e;
+    padding: 80px 90px;
   }
 
-  .slide-cta::before {
-    content: '';
+  .slide-cta .deco-circle {
     position: absolute;
-    top: 40px;
-    left: 40px;
-    right: 40px;
-    bottom: 40px;
-    border: 1px solid rgba(201, 168, 76, 0.35);
+    bottom: -100px;
+    right: -100px;
+    width: 380px;
+    height: 380px;
+    border: 4px solid #c9a84c;
+    border-radius: 50%;
+    opacity: 0.25;
+    pointer-events: none;
   }
 
-  .slide-cta .icon {
-    font-size: 56px;
-    margin-bottom: 40px;
+  .slide-cta .ready-label {
+    font-family: 'Source Serif 4', serif;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #c9a84c;
+    margin-bottom: 36px;
+    position: relative;
+    z-index: 1;
   }
 
   .slide-cta h2 {
     font-family: 'Playfair Display', serif;
-    font-size: 58px;
-    font-weight: 600;
-    line-height: 1.2;
+    font-size: 64px;
+    font-weight: 700;
+    line-height: 1.15;
     color: #1a1a2e;
-    margin-bottom: 30px;
-    max-width: 800px;
+    max-width: 820px;
+    margin-bottom: 36px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .slide-cta .divider {
+    width: 60px;
+    height: 3px;
+    background: #c9a84c;
+    margin-bottom: 36px;
+    position: relative;
+    z-index: 1;
   }
 
   .slide-cta p {
     font-family: 'Source Serif 4', serif;
     font-size: 30px;
     font-weight: 300;
-    line-height: 1.55;
-    color: #3a3a4e;
+    line-height: 1.6;
+    color: #555;
     max-width: 700px;
-    margin-bottom: 50px;
+    margin-bottom: 56px;
+    position: relative;
+    z-index: 1;
   }
 
   .slide-cta .cta-url {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 28px;
-    font-weight: 400;
-    letter-spacing: 3px;
-    color: #8b6914;
-    padding: 20px 50px;
-    border: 1.5px solid rgba(201, 168, 76, 0.6);
-  }
-
-  .slide-cta .brand-footer {
-    position: absolute;
-    bottom: 65px;
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 18px;
-    font-weight: 300;
-    letter-spacing: 4px;
+    background: #1a1a2e;
+    color: #c9a84c;
+    font-family: 'Source Serif 4', serif;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 2px;
     text-transform: uppercase;
-    color: rgba(201, 168, 76, 0.5);
+    padding: 24px 60px;
+    border-radius: 50px;
+    position: relative;
+    z-index: 1;
   }
 </style>
 </head>
 <body>
-  <!-- This template is rendered once per slide by Puppeteer.
-       The renderer injects the correct slide class and content. -->
   <div id="slide"></div>
 
   <script>
-    // Slide data is injected by Puppeteer via page.evaluate()
+    function esc(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
     function renderSlide(slide, index, total) {
       const el = document.getElementById('slide');
 
       if (slide.type === 'hook') {
         el.className = 'slide-hook';
         el.innerHTML = `
-          <div class="logo-mark">The London Choral Service</div>
-          <div class="icon">${slide.icon || ''}</div>
-          <h1>${slide.headline}</h1>
-          <div class="swipe-cue">Swipe to read</div>
+          <div class="top-band">The London Choral Service</div>
+          <div class="ghost-number">${total - 2}</div><!-- total - 2 = content slide count (excludes hook + cta) -->
+          <div class="category-label">${esc(slide.footnote) || 'Choral Music'}</div>
+          <h1>${esc(slide.headline)}</h1>
+          <div class="divider"></div>
         `;
       } else if (slide.type === 'cta') {
         el.className = 'slide-cta';
         el.innerHTML = `
-          <div class="icon">${slide.icon || ''}</div>
-          <h2>${slide.headline}</h2>
-          <p>${slide.body}</p>
+          <div class="top-band">The London Choral Service</div>
+          <div class="deco-circle"></div>
+          <div class="ready-label">Ready to Book?</div>
+          <h2>${esc(slide.headline)}</h2>
+          <div class="divider"></div>
+          <p>${esc(slide.body)}</p>
           <div class="cta-url">londonchoralservice.com</div>
-          <div class="brand-footer">The London Choral Service</div>
         `;
       } else {
         el.className = 'slide-content';
         el.innerHTML = `
-          <div class="slide-number">${index}</div>
-          <div class="icon">${slide.icon || ''}</div>
-          <h2>${slide.headline}</h2>
-          <p>${slide.body}</p>
-          <div class="brand-line">The London Choral Service</div>
+          <div class="top-band">The London Choral Service</div>
+          <div class="ghost-number">${index}</div>
+          <div class="tip-label">Tip ${index}</div>
+          <h2>${esc(slide.headline)}</h2>
+          <div class="divider"></div>
+          <p>${esc(slide.body)}</p>
         `;
       }
     }

@@ -61,7 +61,7 @@ export async function postToLinkedIn(pdfPath, caption) {
     },
     body: JSON.stringify({
       initializeUploadRequest: {
-        owner: orgId,
+        owner: `urn:li:organization:${orgId}`,
       },
     }),
   });
@@ -97,7 +97,7 @@ export async function postToLinkedIn(pdfPath, caption) {
       'X-Restli-Protocol-Version': '2.0.0',
     },
     body: JSON.stringify({
-      author: orgId,
+      author: `urn:li:organization:${orgId}`,
       commentary: caption,
       visibility: 'PUBLIC',
       distribution: {
@@ -109,8 +109,10 @@ export async function postToLinkedIn(pdfPath, caption) {
         media: {
           title: 'The London Choral Service',
           id: documentUrn,
+          status: 'READY',
         },
       },
+      shareMediaCategory: 'DOCUMENT',
       lifecycleState: 'PUBLISHED',
       isReshareDisabledByAuthor: false,
     }),
@@ -185,7 +187,7 @@ export async function postToInstagram(imagePaths, caption) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         media_type: 'CAROUSEL',
-        children: containerIds.join(','),
+        children: containerIds,
         caption: caption,
         access_token: token,
       }),

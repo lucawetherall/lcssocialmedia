@@ -62,22 +62,33 @@ const CHROME_ARGS = [
 ];
 
 let browserInstance = null;
+let browserLaunchPromise = null;
 
 async function getBrowser() {
   if (browserInstance && browserInstance.connected) return browserInstance;
 
-  const executablePath = await findChromePath();
-  browserInstance = await puppeteer.launch({
-    headless: true,
-    executablePath,
-    args: CHROME_ARGS,
+  // Guard against concurrent callers both launching a browser simultaneously.
+  // If a launch is already in progress, wait for it instead of starting another.
+  if (browserLaunchPromise) return browserLaunchPromise;
+
+  browserLaunchPromise = (async () => {
+    const executablePath = await findChromePath();
+    browserInstance = await puppeteer.launch({
+      headless: true,
+      executablePath,
+      args: CHROME_ARGS,
+    });
+
+    browserInstance.on('disconnected', () => {
+      browserInstance = null;
+    });
+
+    return browserInstance;
+  })().finally(() => {
+    browserLaunchPromise = null;
   });
 
-  browserInstance.on('disconnected', () => {
-    browserInstance = null;
-  });
-
-  return browserInstance;
+  return browserLaunchPromise;
 }
 
 export async function closeBrowser() {
@@ -205,7 +216,7 @@ async function generatePdf(imagePaths, outputDir, title) {
 /**
  * Render a single slide (for preview after editing)
  */
-export async function renderSingleSlide(postId, slideIndex, slide, templateName = 'listicle') {
+export async function renderSingleSlide(postId, slideIndex, slide, templateName = 'listicle', total = CONFIG.slideCount) {
   const postDir = path.join(DATA_DIR, 'posts', String(postId));
   await fs.mkdir(postDir, { recursive: true });
 
@@ -239,7 +250,7 @@ export async function renderSingleSlide(postId, slideIndex, slide, templateName 
       },
       slide,
       slideIndex,
-      6
+      total
     );
 
     await new Promise((r) => setTimeout(r, 200));

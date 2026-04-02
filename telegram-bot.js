@@ -8,6 +8,7 @@ import { Telegraf, Markup } from 'telegraf';
 import cron from 'node-cron';
 import path from 'path';
 import fs from 'fs/promises';
+import { createReadStream } from 'fs';
 import { fileURLToPath } from 'url';
 
 import {
@@ -91,7 +92,7 @@ async function sendPostPreview(postId) {
       await fs.access(filepath);
       mediaGroup.push({
         type: 'photo',
-        media: { source: filepath },
+        media: { source: createReadStream(filepath) },
       });
     } catch {
       // slide not rendered
