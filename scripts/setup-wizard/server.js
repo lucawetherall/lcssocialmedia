@@ -564,6 +564,80 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // ── API: export .env as backup ──
+    if (method === 'GET' && url.pathname === '/api/export-env') {
+      if (!existsSync(ENV_PATH)) {
+        sendJson(res, 404, { error: 'No .env file found' });
+        return;
+      }
+      const content = readFileSync(ENV_PATH, 'utf8');
+      res.writeHead(200, {
+        'Content-Type': 'text/plain',
+        'Content-Disposition': 'attachment; filename="lcs-backup.env"',
+      });
+      res.end(content);
+      return;
+    }
+
+    // ── API: import .env from backup ──
+    if (method === 'POST' && url.pathname === '/api/import-env') {
+      const body = await readBody(req);
+      const { content } = body;
+
+      // Parse the uploaded .env content
+      const parsed = {};
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eq = trimmed.indexOf('=');
+        if (eq > 0) parsed[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
+      }
+
+      // Write the .env file
+      writeEnvFile(parsed);
+
+      // Validate each platform in parallel
+      const results = {};
+
+      const checks = [
+        parsed.TELEGRAM_BOT_TOKEN
+          ? validateTelegram(parsed.TELEGRAM_BOT_TOKEN)
+              .then(() => { results.telegram = { valid: true }; })
+              .catch(e => { results.telegram = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.telegram = { valid: false, error: 'Not configured' }; }),
+
+        parsed.GEMINI_API_KEY
+          ? validateGemini(parsed.GEMINI_API_KEY)
+              .then(() => { results.gemini = { valid: true }; })
+              .catch(e => { results.gemini = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.gemini = { valid: false, error: 'Not configured' }; }),
+
+        parsed.IMGBB_API_KEY
+          ? validateImgbb(parsed.IMGBB_API_KEY)
+              .then(() => { results.imgbb = { valid: true }; })
+              .catch(e => { results.imgbb = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.imgbb = { valid: false, error: 'Not configured' }; }),
+
+        parsed.LINKEDIN_ACCESS_TOKEN
+          ? validateLinkedIn(parsed.LINKEDIN_ACCESS_TOKEN, parsed.LINKEDIN_ORG_ID)
+              .then(() => { results.linkedin = { valid: true }; })
+              .catch(e => { results.linkedin = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.linkedin = { valid: false, error: 'Not configured' }; }),
+
+        parsed.FB_PAGE_ACCESS_TOKEN
+          ? validateMeta(parsed.FB_PAGE_ACCESS_TOKEN, parsed.FB_PAGE_ID)
+              .then(() => { results.meta = { valid: true }; })
+              .catch(e => { results.meta = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.meta = { valid: false, error: 'Not configured' }; }),
+      ];
+
+      await Promise.all(checks);
+
+      const allValid = Object.values(results).every(r => r.valid);
+      sendJson(res, 200, { written: true, validation: results, allValid });
+      return;
+    }
+
     // ── 404 ──
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not found');
