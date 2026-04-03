@@ -33,37 +33,23 @@ Fully automated carousel/infographic post generation for **The London Choral Ser
 
 ## Setup
 
-### 1. Install dependencies
-
 ```bash
-npm install
+bash install.sh
 ```
 
-### 2. Run the setup wizard
+This single command checks for Node.js, installs dependencies, opens the guided setup wizard in your browser, and optionally installs the bot as a background service.
 
-```bash
-npm run setup
-```
+**The wizard walks you through 3 steps:**
 
-This opens a guided web wizard in your browser that walks you through all 5 steps:
+1. **API Keys** — Telegram bot token + chat ID, Gemini AI key, imgbb key (~7 min)
+2. **LinkedIn** — guided OAuth flow, auto-detects your Company Page (~15 min)
+3. **Facebook & Instagram** — guided OAuth flow, auto-detects Page + IG account (~15 min)
 
-1. **Telegram Bot** — create via @BotFather (3 min)
-2. **Gemini AI** — free API key, no credit card (2 min)
-3. **Image Hosting** — free imgbb account (2 min)
-4. **LinkedIn** — guided OAuth flow, auto-detects your Company Page (15 min)
-5. **Facebook & Instagram** — guided OAuth flow, auto-detects Page + IG account (15 min)
+Each step validates credentials in real-time. You can skip any platform you don't use.
 
-Each step validates your credentials in real-time and shows green/red status. You can skip any platform you don't use.
+**Already set up on another machine?** Click "Restore from backup" in the wizard and select your saved `lcs-backup.env` file — all OAuth flows are skipped.
 
 For advanced users, a CLI fallback is available: `npm run setup:cli`
-
-### 3. Start the bot
-
-```bash
-npm start
-```
-
-Then open Telegram and send `/generate` to your bot.
 
 ### 4. Telegram commands
 
