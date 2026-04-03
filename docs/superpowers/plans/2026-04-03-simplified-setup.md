@@ -1,0 +1,1433 @@
+# Simplified Setup Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Collapse the 3-command setup into one shell script, add .env backup/restore to skip all OAuth on new machines, and consolidate the 5-step wizard into 3 steps.
+
+**Architecture:** New `install.sh` handles Node check + npm install + wizard launch + optional service install. Two new server endpoints (`/api/export-env`, `/api/import-env`) power backup/restore. The wizard HTML is restructured to show a welcome/import screen followed by 3 steps (API Keys, LinkedIn, Meta) instead of 5.
+
+**Tech Stack:** Plain bash (install.sh), Node.js built-in modules (server endpoints), vanilla JS + HTML (wizard UI). No new dependencies.
+
+---
+
+## File Map
+
+| File | Change |
+|------|--------|
+| `install.sh` | **Create** — Node check, npm install, wizard, service prompt |
+| `scripts/setup-wizard/server.js` | **Modify** — add `/api/export-env` and `/api/import-env` endpoints |
+| `scripts/setup-wizard/public/index.html` | **Modify** — welcome/import screen, 3-step consolidation, export button on completion |
+| `README.md` | **Modify** — setup section simplified to one command |
+
+---
+
+## Task 1: Create `install.sh`
+
+**Files:**
+- Create: `install.sh`
+
+- [ ] **Step 1: Write `install.sh`**
+
+```bash
+#!/usr/bin/env bash
+set -e
+
+# ── Colours ──
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+
+echo ""
+echo "╔══════════════════════════════════════════════════╗"
+echo "║   LCS Social Media — Setup                       ║"
+echo "╚══════════════════════════════════════════════════╝"
+echo ""
+
+# ── Check Node.js ──
+if ! command -v node &>/dev/null; then
+  echo -e "${RED}✗ Node.js not found.${NC}"
+  echo ""
+  echo "  Install it from: https://nodejs.org  (choose the LTS version)"
+  echo "  Then re-run: bash install.sh"
+  echo ""
+  exit 1
+fi
+
+NODE_VERSION=$(node -e "process.exit(parseInt(process.versions.node.split('.')[0]) < 18 ? 1 : 0)" 2>/dev/null && echo "ok" || echo "old")
+if [ "$NODE_VERSION" = "old" ]; then
+  CURRENT=$(node --version)
+  echo -e "${YELLOW}⚠ Node.js ${CURRENT} is too old. Version 18 or newer is required.${NC}"
+  echo ""
+  echo "  Update from: https://nodejs.org  (choose the LTS version)"
+  echo "  Then re-run: bash install.sh"
+  echo ""
+  exit 1
+fi
+
+echo -e "${GREEN}✓ Node.js $(node --version)${NC}"
+echo ""
+
+# ── Install dependencies ──
+echo "Installing dependencies..."
+npm install --silent
+echo -e "${GREEN}✓ Dependencies installed${NC}"
+echo ""
+
+# ── Run setup wizard ──
+echo "Opening setup wizard in your browser..."
+echo ""
+npm run setup
+
+# ── Service install prompt ──
+echo ""
+echo -e "${YELLOW}Install as a background service?${NC}"
+echo "  This makes the bot start automatically on login and restart if it crashes."
+echo ""
+read -r -p "Install service? (y/N) " REPLY
+echo ""
+if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+  npm run install-service
+  echo ""
+  echo -e "${GREEN}✓ Service installed. The bot will start automatically on login.${NC}"
+else
+  echo "  To start manually: npm start"
+  echo "  To install the service later: npm run install-service"
+fi
+
+echo ""
+echo -e "${GREEN}All done! Open Telegram and send /generate to your bot.${NC}"
+echo ""
+```
+
+- [ ] **Step 2: Make executable and verify**
+
+```bash
+chmod +x install.sh
+head -5 install.sh
+```
+
+Expected output: first 5 lines of the script including `#!/usr/bin/env bash`.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add install.sh
+git commit -m "feat: add install.sh — one-command setup (node check + install + wizard + service prompt)"
+```
+
+---
+
+## Task 2: Add `/api/export-env` and `/api/import-env` endpoints to server.js
+
+**Files:**
+- Modify: `scripts/setup-wizard/server.js`
+
+The export endpoint reads the current `.env` file and returns it as a file download. The import endpoint accepts raw `.env` text, writes it, then validates each platform's credentials using the existing validation functions (`validateTelegram`, `validateGemini`, `validateImgbb`, `validateLinkedIn`, `validateMeta`) and returns per-platform status.
+
+- [ ] **Step 1: Add export endpoint — insert before the `// ── 404 ──` comment in `server.js`**
+
+Find this line in `server.js` (around line 567):
+```js
+    // ── 404 ──
+```
+
+Insert immediately before it:
+```js
+    // ── API: export .env as backup ──
+    if (method === 'GET' && url.pathname === '/api/export-env') {
+      if (!existsSync(ENV_PATH)) {
+        sendJson(res, 404, { error: 'No .env file found' });
+        return;
+      }
+      const content = readFileSync(ENV_PATH, 'utf8');
+      res.writeHead(200, {
+        'Content-Type': 'text/plain',
+        'Content-Disposition': 'attachment; filename="lcs-backup.env"',
+      });
+      res.end(content);
+      return;
+    }
+
+    // ── API: import .env from backup ──
+    if (method === 'POST' && url.pathname === '/api/import-env') {
+      const body = await readBody(req);
+      const { content } = body;
+
+      // Parse the uploaded .env content
+      const parsed = {};
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eq = trimmed.indexOf('=');
+        if (eq > 0) parsed[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
+      }
+
+      // Write the .env file
+      writeEnvFile(parsed);
+
+      // Validate each platform in parallel
+      const results = {};
+
+      const checks = [
+        parsed.TELEGRAM_BOT_TOKEN
+          ? validateTelegram(parsed.TELEGRAM_BOT_TOKEN)
+              .then(() => { results.telegram = { valid: true }; })
+              .catch(e => { results.telegram = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.telegram = { valid: false, error: 'Not configured' }; }),
+
+        parsed.GEMINI_API_KEY
+          ? validateGemini(parsed.GEMINI_API_KEY)
+              .then(() => { results.gemini = { valid: true }; })
+              .catch(e => { results.gemini = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.gemini = { valid: false, error: 'Not configured' }; }),
+
+        parsed.IMGBB_API_KEY
+          ? validateImgbb(parsed.IMGBB_API_KEY)
+              .then(() => { results.imgbb = { valid: true }; })
+              .catch(e => { results.imgbb = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.imgbb = { valid: false, error: 'Not configured' }; }),
+
+        parsed.LINKEDIN_ACCESS_TOKEN
+          ? validateLinkedIn(parsed.LINKEDIN_ACCESS_TOKEN, parsed.LINKEDIN_ORG_ID)
+              .then(() => { results.linkedin = { valid: true }; })
+              .catch(e => { results.linkedin = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.linkedin = { valid: false, error: 'Not configured' }; }),
+
+        parsed.FB_PAGE_ACCESS_TOKEN
+          ? validateMeta(parsed.FB_PAGE_ACCESS_TOKEN, parsed.FB_PAGE_ID)
+              .then(() => { results.meta = { valid: true }; })
+              .catch(e => { results.meta = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.meta = { valid: false, error: 'Not configured' }; }),
+      ];
+
+      await Promise.all(checks);
+
+      const allValid = Object.values(results).every(r => r.valid);
+      sendJson(res, 200, { written: true, validation: results, allValid });
+      return;
+    }
+
+```
+
+- [ ] **Step 2: Verify server.js still has valid JS (no syntax errors)**
+
+```bash
+node --input-type=module < scripts/setup-wizard/server.js 2>&1 | head -5 || true
+```
+
+Expected: either silence or the server starting (Ctrl+C to stop). If there's a syntax error it will print it clearly.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add scripts/setup-wizard/server.js
+git commit -m "feat: add /api/export-env and /api/import-env endpoints for config backup/restore"
+```
+
+---
+
+## Task 3: Rewrite wizard HTML — welcome/import screen + 3-step consolidation + export button
+
+**Files:**
+- Modify: `scripts/setup-wizard/public/index.html`
+
+This is the largest change. The current 5-step wizard becomes:
+- Welcome screen (import backup or start fresh) — `id="screen-welcome"`
+- Step 0: API Keys (Telegram + Gemini + imgbb on one screen)
+- Step 1: LinkedIn (unchanged logic)
+- Step 2: Meta (unchanged logic)
+- Completion screen with "Save config backup" download button
+
+The progress bar changes from 5 dots to 3 dots.
+
+The `totalSteps` JS variable changes from `5` to `3`.
+
+Replace the entire content of `index.html` with the following:
+
+- [ ] **Step 1: Replace `index.html`**
+
+Replace the full file with:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LCS Social Media — Setup</title>
+<style>
+  :root {
+    --navy: #1a1a2e;
+    --gold: #c9a84c;
+    --cream: #f5f0e8;
+    --green: #22c55e;
+    --red: #ef4444;
+    --gray: #64748b;
+    --light: #f8f9fa;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--light);
+    color: var(--navy);
+    line-height: 1.6;
+  }
+
+  .container {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 32px 20px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  header p {
+    color: var(--gray);
+    font-size: 14px;
+    margin-top: 4px;
+  }
+
+  /* Progress bar */
+  .progress {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 32px;
+  }
+
+  .progress-step {
+    flex: 1;
+    height: 4px;
+    background: #e2e8f0;
+    border-radius: 2px;
+    transition: background 0.3s;
+  }
+
+  .progress-step.done { background: var(--green); }
+  .progress-step.active { background: var(--gold); }
+  .progress-step.skipped { background: #cbd5e1; }
+
+  /* Steps */
+  .step {
+    display: none;
+    background: white;
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+  }
+
+  .step.active { display: block; }
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .step h2 {
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .step-number {
+    font-size: 13px;
+    color: var(--gray);
+  }
+
+  .instructions {
+    background: var(--cream);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+
+  .instructions ol {
+    padding-left: 20px;
+  }
+
+  .instructions li {
+    margin-bottom: 6px;
+  }
+
+  .instructions a {
+    color: var(--gold);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .instructions a:hover {
+    text-decoration: underline;
+  }
+
+  /* Divider between field groups */
+  .field-divider {
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    margin: 20px 0;
+  }
+
+  .field-group-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 12px;
+  }
+
+  /* Form fields */
+  .field {
+    margin-bottom: 16px;
+  }
+
+  .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    transition: border-color 0.2s;
+    background: white;
+  }
+
+  .field input:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+
+  .field input.valid { border-color: var(--green); }
+  .field input.invalid { border-color: var(--red); }
+
+  .field .hint {
+    font-size: 12px;
+    color: var(--gray);
+    margin-top: 4px;
+  }
+
+  /* Validation status */
+  .validation {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  .validation.success {
+    background: #f0fdf4;
+    color: #166534;
+  }
+
+  .validation.error {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  .validation.loading {
+    background: #fefce8;
+    color: #854d0e;
+  }
+
+  .validation.warning {
+    background: #fffbeb;
+    color: #92400e;
+  }
+
+  /* Buttons */
+  .actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: var(--navy);
+    color: white;
+    flex: 1;
+  }
+
+  .btn-primary:hover { background: #2a2a4e; }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: #e2e8f0;
+    color: var(--navy);
+  }
+
+  .btn-secondary:hover { background: #cbd5e1; }
+
+  .btn-skip {
+    background: none;
+    color: var(--gray);
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  .btn-skip:hover { color: var(--navy); }
+
+  .btn-oauth {
+    background: var(--gold);
+    color: white;
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  .btn-oauth:hover { background: #b8973f; }
+  .btn-oauth:disabled { background: #94a3b8; cursor: not-allowed; }
+
+  .btn-export {
+    background: var(--navy);
+    color: white;
+    width: 100%;
+    padding: 12px;
+    font-size: 15px;
+    margin-top: 8px;
+  }
+
+  .btn-export:hover { background: #2a2a4e; }
+
+  /* Select for choosing org/page */
+  .field select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 15px;
+    background: white;
+    cursor: pointer;
+  }
+
+  .field select:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+
+  /* Welcome screen */
+  .welcome-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .welcome-option {
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 20px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    text-align: left;
+    background: white;
+    width: 100%;
+  }
+
+  .welcome-option:hover {
+    border-color: var(--gold);
+    background: #fffdf7;
+  }
+
+  .welcome-option-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 4px;
+  }
+
+  .welcome-option-desc {
+    font-size: 13px;
+    color: var(--gray);
+  }
+
+  /* Complete screen */
+  .complete {
+    text-align: center;
+    padding: 48px 32px;
+  }
+
+  .complete .icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+  }
+
+  .complete h2 {
+    margin-bottom: 8px;
+  }
+
+  .summary {
+    background: var(--cream);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 24px 0;
+    text-align: left;
+  }
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 14px;
+  }
+
+  .summary-row .status-ok { color: var(--green); font-weight: 600; }
+  .summary-row .status-skip { color: var(--gray); }
+
+  .code-block {
+    background: var(--navy);
+    color: var(--cream);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    text-align: left;
+    margin-top: 16px;
+  }
+
+  /* Spinner */
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e2e8f0;
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>LCS Social Media Setup</h1>
+    <p id="header-subtitle">Configure your social media automation</p>
+  </header>
+
+  <div class="progress" id="progress" style="display:none">
+    <div class="progress-step active" data-step="0"></div>
+    <div class="progress-step" data-step="1"></div>
+    <div class="progress-step" data-step="2"></div>
+  </div>
+
+  <!-- Welcome / Import screen -->
+  <div class="step active" id="screen-welcome">
+    <div class="step-header">
+      <h2>Welcome</h2>
+    </div>
+    <p style="color: var(--gray); font-size: 14px; margin-bottom: 4px;">
+      First time? Setup takes about 40 minutes — you'll connect Telegram, Gemini AI, image hosting, LinkedIn, and Facebook/Instagram.
+    </p>
+    <p style="color: var(--gray); font-size: 14px;">
+      Already set up on another machine? Restore your config in seconds.
+    </p>
+
+    <div class="welcome-options">
+      <button class="welcome-option" onclick="startFresh()">
+        <div class="welcome-option-title">Start fresh setup</div>
+        <div class="welcome-option-desc">Connect all platforms step by step (~40 min)</div>
+      </button>
+      <button class="welcome-option" onclick="document.getElementById('backup-file-input').click()">
+        <div class="welcome-option-title">⚡ Restore from backup</div>
+        <div class="welcome-option-desc">Import a saved config file — skips all OAuth flows</div>
+      </button>
+    </div>
+
+    <input type="file" id="backup-file-input" accept=".env" style="display:none" onchange="importBackup(this)">
+    <div id="import-status" style="margin-top: 16px;"></div>
+  </div>
+
+  <!-- Step 0: API Keys (Telegram + Gemini + imgbb) -->
+  <div class="step" id="step-0">
+    <div class="step-header">
+      <h2>API Keys</h2>
+      <span class="step-number">Step 1 of 3</span>
+    </div>
+
+    <div class="field-group-label">Telegram Bot</div>
+    <div class="instructions">
+      <ol>
+        <li>Open Telegram and search for <strong>@BotFather</strong></li>
+        <li>Send <strong>/newbot</strong> and follow the prompts to name your bot</li>
+        <li>Copy the bot token and paste it below</li>
+        <li>Search for <strong>@userinfobot</strong> on Telegram and message it</li>
+        <li>It will reply with your numeric chat ID — paste it below</li>
+      </ol>
+    </div>
+    <div class="field">
+      <label>Bot Token</label>
+      <input type="text" id="telegram-token" placeholder="1234567890:ABCdef...">
+    </div>
+    <div class="field">
+      <label>Your Chat ID</label>
+      <input type="text" id="telegram-chat-id" placeholder="123456789">
+      <div class="hint">Numeric ID only — restricts the bot to respond only to you</div>
+    </div>
+
+    <hr class="field-divider">
+    <div class="field-group-label">Gemini AI</div>
+    <div class="instructions">
+      <ol>
+        <li><a href="https://aistudio.google.com/apikey" target="_blank">Click here to open Google AI Studio</a></li>
+        <li>Sign in with your Google account and click <strong>"Create API Key"</strong></li>
+      </ol>
+      <p style="margin-top: 6px; font-size: 13px; color: #666;">Free — no credit card needed.</p>
+    </div>
+    <div class="field">
+      <label>Gemini API Key</label>
+      <input type="text" id="gemini-key" placeholder="AIza...">
+    </div>
+
+    <hr class="field-divider">
+    <div class="field-group-label">Image Hosting (imgbb)</div>
+    <div class="instructions">
+      <ol>
+        <li><a href="https://api.imgbb.com/" target="_blank">Click here to open imgbb</a></li>
+        <li>Create a free account (or sign in) and copy your API key</li>
+      </ol>
+      <p style="margin-top: 6px; font-size: 13px; color: #666;">Free — used so Instagram can access your images via public URL.</p>
+    </div>
+    <div class="field">
+      <label>imgbb API Key</label>
+      <input type="text" id="imgbb-key" placeholder="abc123def456...">
+    </div>
+
+    <div id="apikeys-status"></div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="goToWelcome()">Back</button>
+      <button class="btn-primary" onclick="validateApiKeys()">Validate & Continue</button>
+    </div>
+  </div>
+
+  <!-- Step 1: LinkedIn -->
+  <div class="step" id="step-1">
+    <div class="step-header">
+      <h2>LinkedIn</h2>
+      <span class="step-number">Step 2 of 3</span>
+    </div>
+    <div class="instructions">
+      <ol>
+        <li><a href="https://www.linkedin.com/developers/apps" target="_blank">Click here to open LinkedIn Developer Portal</a></li>
+        <li>Click <strong>"Create App"</strong> — fill in your company name, app name, and logo</li>
+        <li>Go to the <strong>"Auth"</strong> tab and copy your <strong>Client ID</strong> and <strong>Client Secret</strong></li>
+        <li>In the <strong>"Auth"</strong> tab, add this redirect URL:<br>
+          <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:13px;">http://localhost:3456/callback/linkedin</code></li>
+        <li>Go to <strong>"Products"</strong> tab and request access to <strong>"Community Management API"</strong></li>
+      </ol>
+    </div>
+    <div class="field">
+      <label>Client ID</label>
+      <input type="text" id="linkedin-client-id" placeholder="86abc123def456">
+    </div>
+    <div class="field">
+      <label>Client Secret</label>
+      <input type="password" id="linkedin-client-secret" placeholder="Your client secret">
+    </div>
+    <button class="btn-oauth" id="linkedin-connect-btn" onclick="startLinkedInOAuth()">
+      Connect LinkedIn
+    </button>
+    <div id="linkedin-status"></div>
+    <div id="linkedin-org-select" style="display:none">
+      <div class="field">
+        <label>Select Your Company Page</label>
+        <select id="linkedin-org"></select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="goBack()">Back</button>
+      <button class="btn-skip" onclick="skipStep('linkedin')">Skip — I don't use LinkedIn</button>
+      <button class="btn-primary" id="linkedin-next-btn" onclick="nextStep()" disabled>Continue</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Meta -->
+  <div class="step" id="step-2">
+    <div class="step-header">
+      <h2>Facebook & Instagram</h2>
+      <span class="step-number">Step 3 of 3</span>
+    </div>
+    <div class="instructions">
+      <ol>
+        <li><a href="https://developers.facebook.com/apps/" target="_blank">Click here to open Meta Developer Portal</a></li>
+        <li>Click <strong>"Create App"</strong> &rarr; choose <strong>"Business"</strong> type</li>
+        <li>In your app settings, add the product <strong>"Instagram Graph API"</strong></li>
+        <li>Go to <strong>"App Settings" &rarr; "Basic"</strong> and copy your <strong>App ID</strong> and <strong>App Secret</strong></li>
+        <li>Under <strong>"Facebook Login" &rarr; "Settings"</strong>, add this redirect URL:<br>
+          <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:13px;">http://localhost:3456/callback/meta</code></li>
+      </ol>
+    </div>
+    <div class="field">
+      <label>App ID</label>
+      <input type="text" id="meta-app-id" placeholder="123456789012345">
+    </div>
+    <div class="field">
+      <label>App Secret</label>
+      <input type="password" id="meta-app-secret" placeholder="Your app secret">
+    </div>
+    <button class="btn-oauth" id="meta-connect-btn" onclick="startMetaOAuth()">
+      Connect Facebook & Instagram
+    </button>
+    <div id="meta-status"></div>
+    <div id="meta-page-select" style="display:none">
+      <div class="field">
+        <label>Select Your Facebook Page</label>
+        <select id="meta-page"></select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="goBack()">Back</button>
+      <button class="btn-skip" onclick="skipStep('meta')">Skip — I don't use Facebook/Instagram</button>
+      <button class="btn-primary" id="meta-next-btn" onclick="finishSetup()" disabled>Finish Setup</button>
+    </div>
+  </div>
+
+  <!-- Complete -->
+  <div class="step" id="step-complete">
+    <div class="complete">
+      <div class="icon">&#10003;</div>
+      <h2>Setup Complete!</h2>
+      <p>Your credentials have been saved to <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:13px;">.env</code></p>
+
+      <div class="summary" id="summary"></div>
+
+      <p style="font-size: 15px; font-weight: 600; margin: 24px 0 4px;">Save a backup for your next machine:</p>
+      <p style="font-size: 13px; color: var(--gray); margin-bottom: 8px;">Importing this file on a new machine skips all OAuth flows.</p>
+      <button class="btn-export" onclick="downloadBackup()">&#8595; Save config backup</button>
+
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+
+      <p style="font-size: 15px; font-weight: 600; margin: 0 0 8px;">Next — install as a background service:</p>
+      <div class="code-block">npm run install-service</div>
+      <p style="font-size: 13px; color: var(--gray); margin-top: 8px;">Registers the bot with macOS launchd so it starts on login and auto-restarts on crash.</p>
+
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+
+      <p style="font-size: 13px; color: var(--gray);">Or start manually for testing:</p>
+      <div class="code-block">npm start</div>
+      <p style="font-size: 13px; color: var(--gray); margin-top: 10px;">Then open Telegram and send <strong>/generate</strong> to your bot.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+
+let currentStep = -1; // -1 = welcome screen
+const totalSteps = 3;
+const config = {};
+const skipped = new Set();
+
+// ── Welcome screen ──
+
+function startFresh() {
+  document.getElementById('header-subtitle').textContent = 'Configure your social media automation in 3 steps';
+  document.getElementById('progress').style.display = 'flex';
+  showStep(0);
+}
+
+function goToWelcome() {
+  document.getElementById('progress').style.display = 'none';
+  document.getElementById('header-subtitle').textContent = 'Configure your social media automation';
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-welcome').classList.add('active');
+  currentStep = -1;
+}
+
+// ── Import backup ──
+
+async function importBackup(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  showImportStatus('loading', 'Reading backup file...');
+
+  try {
+    const content = await file.text();
+    showImportStatus('loading', 'Validating credentials...');
+
+    const res = await fetch('/api/import-env', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    const data = await res.json();
+
+    if (!data.written) {
+      showImportStatus('error', 'Failed to write config file.');
+      return;
+    }
+
+    const v = data.validation;
+    const failed = Object.entries(v).filter(([, r]) => !r.valid && r.error !== 'Not configured');
+    const notConfigured = Object.entries(v).filter(([, r]) => r.error === 'Not configured');
+
+    if (data.allValid) {
+      showImportStatus('success', 'All credentials are valid — loading completion screen...');
+      // Populate config from .env for summary
+      config._fromBackup = true;
+      setTimeout(() => {
+        buildSummaryFromValidation(v);
+        showComplete();
+      }, 1000);
+      return;
+    }
+
+    if (failed.length > 0) {
+      const names = failed.map(([k]) => k).join(', ');
+      showImportStatus('warning',
+        `Backup loaded. Some credentials need re-auth: ${names}. ` +
+        `Continuing to wizard for those steps only.`
+      );
+      // Pre-populate config with the valid values from backup
+      loadConfigFromBackup(content, v);
+      setTimeout(() => {
+        startFresh();
+      }, 2000);
+    } else {
+      // Only "not configured" failures — treat as complete
+      showImportStatus('success', 'Backup restored — loading completion screen...');
+      config._fromBackup = true;
+      setTimeout(() => {
+        buildSummaryFromValidation(v);
+        showComplete();
+      }, 1000);
+    }
+  } catch (err) {
+    showImportStatus('error', `Import failed: ${err.message}`);
+  }
+
+  // Reset file input so the same file can be re-selected if needed
+  input.value = '';
+}
+
+function loadConfigFromBackup(content, validation) {
+  const parsed = {};
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq > 0) parsed[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
+  }
+
+  // Copy valid platform configs into working config
+  if (validation.telegram?.valid) {
+    config.TELEGRAM_BOT_TOKEN = parsed.TELEGRAM_BOT_TOKEN;
+    config.TELEGRAM_CHAT_ID = parsed.TELEGRAM_CHAT_ID;
+  }
+  if (validation.gemini?.valid) config.GEMINI_API_KEY = parsed.GEMINI_API_KEY;
+  if (validation.imgbb?.valid) config.IMGBB_API_KEY = parsed.IMGBB_API_KEY;
+  if (validation.linkedin?.valid) {
+    config.LINKEDIN_ACCESS_TOKEN = parsed.LINKEDIN_ACCESS_TOKEN;
+    config.LINKEDIN_REFRESH_TOKEN = parsed.LINKEDIN_REFRESH_TOKEN;
+    config.LINKEDIN_CLIENT_ID = parsed.LINKEDIN_CLIENT_ID;
+    config.LINKEDIN_CLIENT_SECRET = parsed.LINKEDIN_CLIENT_SECRET;
+    config.LINKEDIN_ORG_ID = parsed.LINKEDIN_ORG_ID;
+    config.TOKEN_EXPIRY_LINKEDIN = parsed.TOKEN_EXPIRY_LINKEDIN;
+  }
+  if (validation.meta?.valid) {
+    config.FB_PAGE_ACCESS_TOKEN = parsed.FB_PAGE_ACCESS_TOKEN;
+    config.FB_PAGE_ID = parsed.FB_PAGE_ID;
+    config.IG_USER_ID = parsed.IG_USER_ID;
+    config.META_APP_ID = parsed.META_APP_ID;
+    config.META_APP_SECRET = parsed.META_APP_SECRET;
+    config.TOKEN_EXPIRY_META = parsed.TOKEN_EXPIRY_META;
+  }
+}
+
+function showImportStatus(type, message) {
+  const el = document.getElementById('import-status');
+  if (type === 'loading') {
+    el.innerHTML = `<div class="validation loading"><span class="spinner"></span> ${message}</div>`;
+  } else if (type === 'success') {
+    el.innerHTML = `<div class="validation success">&#10003; ${message}</div>`;
+  } else if (type === 'warning') {
+    el.innerHTML = `<div class="validation warning">&#9888; ${message}</div>`;
+  } else {
+    el.innerHTML = `<div class="validation error">&#10007; ${message}</div>`;
+  }
+}
+
+// ── Navigation ──
+
+function showStep(n) {
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById(`step-${n}`).classList.add('active');
+
+  document.querySelectorAll('.progress-step').forEach((s, i) => {
+    s.classList.remove('active', 'done', 'skipped');
+    if (i < n) s.classList.add(skipped.has(i) ? 'skipped' : 'done');
+    else if (i === n) s.classList.add('active');
+  });
+
+  currentStep = n;
+}
+
+function showComplete() {
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step-complete').classList.add('active');
+  document.getElementById('progress').style.display = 'none';
+  document.getElementById('header-subtitle').textContent = '';
+  document.querySelectorAll('.progress-step').forEach(s => {
+    s.classList.remove('active');
+    s.classList.add('done');
+  });
+}
+
+function nextStep() {
+  showStep(currentStep + 1);
+}
+
+function goBack() {
+  if (currentStep > 0) showStep(currentStep - 1);
+  else goToWelcome();
+}
+
+function skipStep(platform) {
+  skipped.add(currentStep);
+  if (currentStep + 1 >= totalSteps) {
+    finishSetup();
+  } else {
+    nextStep();
+  }
+}
+
+// ── Status display ──
+
+function showStatus(id, type, message) {
+  const el = document.getElementById(id);
+  if (type === 'loading') {
+    el.innerHTML = `<div class="validation loading"><span class="spinner"></span> ${message}</div>`;
+  } else if (type === 'success') {
+    el.innerHTML = `<div class="validation success">&#10003; ${message}</div>`;
+  } else {
+    el.innerHTML = `<div class="validation error">&#10007; ${message}</div>`;
+  }
+}
+
+function clearStatus(id) {
+  document.getElementById(id).innerHTML = '';
+}
+
+// ── API helpers ──
+
+async function api(path, body) {
+  const opts = body
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    : {};
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+// ── API Keys step (Telegram + Gemini + imgbb combined) ──
+
+async function validateApiKeys() {
+  clearStatus('apikeys-status');
+
+  const token = document.getElementById('telegram-token').value.trim();
+  const chatId = document.getElementById('telegram-chat-id').value.trim();
+  const geminiKey = document.getElementById('gemini-key').value.trim();
+  const imgbbKey = document.getElementById('imgbb-key').value.trim();
+
+  if (!token || !chatId || !geminiKey || !imgbbKey) {
+    showStatus('apikeys-status', 'error', 'All four fields are required');
+    return;
+  }
+  if (!/^\d+$/.test(chatId)) {
+    showStatus('apikeys-status', 'error', 'Chat ID must be numeric');
+    return;
+  }
+
+  showStatus('apikeys-status', 'loading', 'Validating all keys...');
+
+  try {
+    const [telegramResult, , ] = await Promise.all([
+      api('/api/validate', { type: 'telegram', token }),
+      api('/api/validate', { type: 'gemini', key: geminiKey }),
+      api('/api/validate', { type: 'imgbb', key: imgbbKey }),
+    ]);
+
+    config.TELEGRAM_BOT_TOKEN = token;
+    config.TELEGRAM_CHAT_ID = chatId;
+    config.GEMINI_API_KEY = geminiKey;
+    config.IMGBB_API_KEY = imgbbKey;
+
+    showStatus('apikeys-status', 'success', `All keys valid — Telegram bot: @${telegramResult.botName}`);
+    setTimeout(nextStep, 800);
+  } catch (err) {
+    showStatus('apikeys-status', 'error', `Validation failed: ${err.message}`);
+  }
+}
+
+// ── LinkedIn OAuth ──
+
+let linkedInPollTimer = null;
+
+async function startLinkedInOAuth() {
+  const clientId = document.getElementById('linkedin-client-id').value.trim();
+  const clientSecret = document.getElementById('linkedin-client-secret').value.trim();
+  if (!clientId || !clientSecret) {
+    showStatus('linkedin-status', 'error', 'Both Client ID and Client Secret are required');
+    return;
+  }
+
+  showStatus('linkedin-status', 'loading', 'Opening LinkedIn... Complete the authorization in the new tab.');
+  document.getElementById('linkedin-connect-btn').disabled = true;
+
+  const result = await api('/api/auth/linkedin/start', { clientId, clientSecret });
+  window.open(result.authUrl, '_blank');
+
+  linkedInPollTimer = setInterval(async () => {
+    const data = await api('/api/auth/linkedin/result');
+    if (!data.pending) {
+      clearInterval(linkedInPollTimer);
+      onLinkedInConnected(data, clientId, clientSecret);
+    }
+  }, 2000);
+}
+
+function onLinkedInConnected(data, clientId, clientSecret) {
+  config.LINKEDIN_ACCESS_TOKEN = data.accessToken;
+  config.LINKEDIN_REFRESH_TOKEN = data.refreshToken;
+  config.LINKEDIN_CLIENT_ID = clientId;
+  config.LINKEDIN_CLIENT_SECRET = clientSecret;
+  config.TOKEN_EXPIRY_LINKEDIN = expiryDate(data.expiresIn);
+
+  showStatus('linkedin-status', 'success', 'LinkedIn connected!');
+  document.getElementById('linkedin-connect-btn').disabled = true;
+
+  if (data.orgs && data.orgs.length > 0) {
+    const select = document.getElementById('linkedin-org');
+    select.innerHTML = '';
+    for (const org of data.orgs) {
+      const opt = document.createElement('option');
+      opt.value = org.urn;
+      opt.textContent = org.name;
+      select.appendChild(opt);
+    }
+    document.getElementById('linkedin-org-select').style.display = 'block';
+    config.LINKEDIN_ORG_ID = data.orgs[0].urn;
+    select.addEventListener('change', () => { config.LINKEDIN_ORG_ID = select.value; });
+  } else {
+    document.getElementById('linkedin-org-select').style.display = 'block';
+    const container = document.getElementById('linkedin-org-select');
+    container.innerHTML = `
+      <div class="field">
+        <label>Company Page URN</label>
+        <input type="text" id="linkedin-org-manual" placeholder="urn:li:organization:12345678"
+               oninput="config.LINKEDIN_ORG_ID = this.value.trim()">
+        <div class="hint">Find the number in your LinkedIn Company Page URL</div>
+      </div>`;
+  }
+
+  document.getElementById('linkedin-next-btn').disabled = false;
+}
+
+// ── Meta OAuth ──
+
+let metaPollTimer = null;
+
+async function startMetaOAuth() {
+  const appId = document.getElementById('meta-app-id').value.trim();
+  const appSecret = document.getElementById('meta-app-secret').value.trim();
+  if (!appId || !appSecret) {
+    showStatus('meta-status', 'error', 'Both App ID and App Secret are required');
+    return;
+  }
+
+  showStatus('meta-status', 'loading', 'Opening Facebook... Complete the authorization in the new tab.');
+  document.getElementById('meta-connect-btn').disabled = true;
+
+  const result = await api('/api/auth/meta/start', { appId, appSecret });
+  window.open(result.authUrl, '_blank');
+
+  metaPollTimer = setInterval(async () => {
+    const data = await api('/api/auth/meta/result');
+    if (!data.pending) {
+      clearInterval(metaPollTimer);
+      onMetaConnected(data, appId, appSecret);
+    }
+  }, 2000);
+}
+
+function onMetaConnected(data, appId, appSecret) {
+  config.META_APP_ID = appId;
+  config.META_APP_SECRET = appSecret;
+  config.TOKEN_EXPIRY_META = expiryDate(data.expiresIn);
+
+  if (data.pages && data.pages.length > 0) {
+    const select = document.getElementById('meta-page');
+    select.innerHTML = '';
+    for (const page of data.pages) {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify(page);
+      opt.textContent = `${page.name}${page.igUserId ? ' (+ Instagram)' : ''}`;
+      select.appendChild(opt);
+    }
+    document.getElementById('meta-page-select').style.display = 'block';
+
+    selectMetaPage(data.pages[0]);
+    select.addEventListener('change', () => {
+      selectMetaPage(JSON.parse(select.value));
+    });
+
+    showStatus('meta-status', 'success', `Connected! Found ${data.pages.length} page(s).`);
+  } else {
+    showStatus('meta-status', 'error', 'No Facebook Pages found. Make sure your app has page access.');
+    document.getElementById('meta-connect-btn').disabled = false;
+    return;
+  }
+
+  document.getElementById('meta-next-btn').disabled = false;
+}
+
+function selectMetaPage(page) {
+  config.FB_PAGE_ACCESS_TOKEN = page.accessToken;
+  config.FB_PAGE_ID = page.id;
+  config.IG_USER_ID = page.igUserId || '';
+}
+
+// ── Finish ──
+
+async function finishSetup() {
+  showStatus('meta-status', 'loading', 'Saving configuration...');
+
+  try {
+    await api('/api/save', { values: config });
+    buildSummary();
+    showComplete();
+  } catch (err) {
+    showStatus('meta-status', 'error', `Failed to save: ${err.message}`);
+  }
+}
+
+function buildSummary() {
+  const rows = [
+    ['Telegram Bot', config.TELEGRAM_BOT_TOKEN ? 'ok' : 'skip'],
+    ['Gemini AI', config.GEMINI_API_KEY ? 'ok' : 'skip'],
+    ['Image Hosting', config.IMGBB_API_KEY ? 'ok' : 'skip'],
+    ['LinkedIn', config.LINKEDIN_ACCESS_TOKEN ? 'ok' : 'skip'],
+    ['Facebook', config.FB_PAGE_ACCESS_TOKEN ? 'ok' : 'skip'],
+    ['Instagram', config.IG_USER_ID ? 'ok' : 'skip'],
+  ];
+
+  const html = rows.map(([name, status]) => {
+    const cls = status === 'ok' ? 'status-ok' : 'status-skip';
+    const label = status === 'ok' ? 'Connected' : 'Skipped';
+    return `<div class="summary-row"><span>${name}</span><span class="${cls}">${label}</span></div>`;
+  }).join('');
+
+  document.getElementById('summary').innerHTML = html;
+}
+
+function buildSummaryFromValidation(validation) {
+  const rows = [
+    ['Telegram Bot', validation.telegram?.valid ? 'ok' : 'skip'],
+    ['Gemini AI', validation.gemini?.valid ? 'ok' : 'skip'],
+    ['Image Hosting', validation.imgbb?.valid ? 'ok' : 'skip'],
+    ['LinkedIn', validation.linkedin?.valid ? 'ok' : 'skip'],
+    ['Facebook', validation.meta?.valid ? 'ok' : 'skip'],
+    ['Instagram', validation.meta?.valid ? 'ok' : 'skip'],
+  ];
+
+  const html = rows.map(([name, status]) => {
+    const cls = status === 'ok' ? 'status-ok' : 'status-skip';
+    const label = status === 'ok' ? 'Connected' : 'Skipped';
+    return `<div class="summary-row"><span>${name}</span><span class="${cls}">${label}</span></div>`;
+  }).join('');
+
+  document.getElementById('summary').innerHTML = html;
+}
+
+// ── Export backup ──
+
+async function downloadBackup() {
+  try {
+    const res = await fetch('/api/export-env');
+    if (!res.ok) {
+      alert('Could not export config — .env file not found.');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lcs-backup.env';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert(`Export failed: ${err.message}`);
+  }
+}
+
+// ── Helpers ──
+
+function expiryDate(seconds) {
+  if (!seconds) return '';
+  const d = new Date();
+  d.setSeconds(d.getSeconds() + seconds);
+  return d.toISOString().split('T')[0];
+}
+
+// ── Init: pre-fill existing values ──
+
+(async function init() {
+  try {
+    const status = await api('/api/status');
+    if (status.existing) {
+      if (status.values.TELEGRAM_CHAT_ID) {
+        document.getElementById('telegram-chat-id').value = status.values.TELEGRAM_CHAT_ID;
+      }
+      if (status.values.LINKEDIN_CLIENT_ID) {
+        document.getElementById('linkedin-client-id').value = status.values.LINKEDIN_CLIENT_ID;
+      }
+      if (status.values.META_APP_ID) {
+        document.getElementById('meta-app-id').value = status.values.META_APP_ID;
+      }
+      if (status.values.LINKEDIN_ORG_ID) {
+        config.LINKEDIN_ORG_ID = status.values.LINKEDIN_ORG_ID;
+      }
+      if (status.values.FB_PAGE_ID) {
+        config.FB_PAGE_ID = status.values.FB_PAGE_ID;
+      }
+    }
+  } catch { /* fresh start */ }
+})();
+</script>
+</body>
+</html>
+```
+
+- [ ] **Step 2: Verify the file was written correctly (check key landmarks)**
+
+```bash
+grep -c "screen-welcome\|step-0\|step-1\|step-2\|step-complete\|downloadBackup\|importBackup\|validateApiKeys" scripts/setup-wizard/public/index.html
+```
+
+Expected: `8` (one match per landmark).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add scripts/setup-wizard/public/index.html
+git commit -m "feat: wizard — welcome/import screen, 3-step consolidation, backup export button"
+```
+
+---
+
+## Task 4: Update README
+
+**Files:**
+- Modify: `README.md`
+
+- [ ] **Step 1: Replace the setup section in README.md**
+
+Find and replace the current "## Setup" section. The new section is:
+
+```markdown
+## Setup
+
+```bash
+bash install.sh
+```
+
+This single command checks for Node.js, installs dependencies, opens the guided setup wizard in your browser, and optionally installs the bot as a background service.
+
+**The wizard walks you through 3 steps:**
+
+1. **API Keys** — Telegram bot token + chat ID, Gemini AI key, imgbb key (~7 min)
+2. **LinkedIn** — guided OAuth flow, auto-detects your Company Page (~15 min)
+3. **Facebook & Instagram** — guided OAuth flow, auto-detects Page + IG account (~15 min)
+
+Each step validates credentials in real-time. You can skip any platform you don't use.
+
+**Already set up on another machine?** Click "Restore from backup" in the wizard and select your saved `lcs-backup.env` file — all OAuth flows are skipped.
+
+For advanced users, a CLI fallback is available: `npm run setup:cli`
+```
+
+- [ ] **Step 2: Verify README looks right**
+
+```bash
+grep -A 20 "## Setup" README.md | head -25
+```
+
+Expected: shows `bash install.sh` as the first code block.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add README.md
+git commit -m "docs: simplify setup section to single install.sh command"
+```
+
+---
+
+## Task 5: Verify end-to-end
+
+- [ ] **Step 1: Verify install.sh is executable and passes a basic syntax check**
+
+```bash
+bash -n install.sh && echo "Syntax OK"
+```
+
+Expected: `Syntax OK`
+
+- [ ] **Step 2: Check server.js has the new endpoints**
+
+```bash
+grep -n "export-env\|import-env" scripts/setup-wizard/server.js
+```
+
+Expected: two lines showing the endpoint path strings.
+
+- [ ] **Step 3: Check wizard HTML has all 4 screens**
+
+```bash
+grep -n "screen-welcome\|id=\"step-0\"\|id=\"step-1\"\|id=\"step-2\"\|step-complete" scripts/setup-wizard/public/index.html
+```
+
+Expected: 5 lines (one per screen/step).
+
+- [ ] **Step 4: Check git log looks clean**
+
+```bash
+git log --oneline -6
+```
+
+Expected: 4 new commits on top of the previous history (install.sh, server endpoints, wizard HTML, README).
