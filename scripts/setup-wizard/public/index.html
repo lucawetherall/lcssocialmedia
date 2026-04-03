@@ -120,6 +120,22 @@
     text-decoration: underline;
   }
 
+  /* Divider between field groups */
+  .field-divider {
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    margin: 20px 0;
+  }
+
+  .field-group-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 12px;
+  }
+
   /* Form fields */
   .field {
     margin-bottom: 16px;
@@ -186,6 +202,11 @@
     color: #854d0e;
   }
 
+  .validation.warning {
+    background: #fffbeb;
+    color: #92400e;
+  }
+
   /* Buttons */
   .actions {
     display: flex;
@@ -240,6 +261,17 @@
   .btn-oauth:hover { background: #b8973f; }
   .btn-oauth:disabled { background: #94a3b8; cursor: not-allowed; }
 
+  .btn-export {
+    background: var(--navy);
+    color: white;
+    width: 100%;
+    padding: 12px;
+    font-size: 15px;
+    margin-top: 8px;
+  }
+
+  .btn-export:hover { background: #2a2a4e; }
+
   /* Select for choosing org/page */
   .field select {
     width: 100%;
@@ -254,6 +286,42 @@
   .field select:focus {
     outline: none;
     border-color: var(--gold);
+  }
+
+  /* Welcome screen */
+  .welcome-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .welcome-option {
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 20px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    text-align: left;
+    background: white;
+    width: 100%;
+  }
+
+  .welcome-option:hover {
+    border-color: var(--gold);
+    background: #fffdf7;
+  }
+
+  .welcome-option-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 4px;
+  }
+
+  .welcome-option-desc {
+    font-size: 13px;
+    color: var(--gray);
   }
 
   /* Complete screen */
@@ -318,106 +386,109 @@
 <div class="container">
   <header>
     <h1>LCS Social Media Setup</h1>
-    <p>Configure your social media automation in 5 steps</p>
+    <p id="header-subtitle">Configure your social media automation</p>
   </header>
 
-  <div class="progress" id="progress">
+  <div class="progress" id="progress" style="display:none">
     <div class="progress-step active" data-step="0"></div>
     <div class="progress-step" data-step="1"></div>
     <div class="progress-step" data-step="2"></div>
-    <div class="progress-step" data-step="3"></div>
-    <div class="progress-step" data-step="4"></div>
   </div>
 
-  <!-- Step 1: Telegram -->
-  <div class="step active" id="step-0">
+  <!-- Welcome / Import screen -->
+  <div class="step active" id="screen-welcome">
     <div class="step-header">
-      <h2>Telegram Bot</h2>
-      <span class="step-number">Step 1 of 5</span>
+      <h2>Welcome</h2>
     </div>
+    <p style="color: var(--gray); font-size: 14px; margin-bottom: 8px;">
+      First time? Setup takes about 40 minutes — you'll connect Telegram, Gemini AI, image hosting, LinkedIn, and Facebook/Instagram.
+    </p>
+    <p style="color: var(--gray); font-size: 14px;">
+      Already set up on another machine? Restore your config in seconds.
+    </p>
+
+    <div class="welcome-options">
+      <button class="welcome-option" onclick="startFresh()">
+        <div class="welcome-option-title">Start fresh setup</div>
+        <div class="welcome-option-desc">Connect all platforms step by step (~40 min)</div>
+      </button>
+      <button class="welcome-option" onclick="document.getElementById('backup-file-input').click()">
+        <div class="welcome-option-title">&#9889; Restore from backup</div>
+        <div class="welcome-option-desc">Import a saved config file — skips all OAuth flows</div>
+      </button>
+    </div>
+
+    <input type="file" id="backup-file-input" accept=".env" style="display:none" onchange="importBackup(this)">
+    <div id="import-status" style="margin-top: 16px;"></div>
+  </div>
+
+  <!-- Step 0: API Keys (Telegram + Gemini + imgbb) -->
+  <div class="step" id="step-0">
+    <div class="step-header">
+      <h2>API Keys</h2>
+      <span class="step-number">Step 1 of 3</span>
+    </div>
+
+    <div class="field-group-label">Telegram Bot</div>
     <div class="instructions">
       <ol>
         <li>Open Telegram and search for <strong>@BotFather</strong></li>
         <li>Send <strong>/newbot</strong> and follow the prompts to name your bot</li>
         <li>Copy the bot token and paste it below</li>
+        <li>Search for <strong>@userinfobot</strong> on Telegram and message it</li>
+        <li>It will reply with your numeric chat ID — paste it below</li>
       </ol>
     </div>
     <div class="field">
       <label>Bot Token</label>
       <input type="text" id="telegram-token" placeholder="1234567890:ABCdef...">
     </div>
-    <div class="instructions" style="margin-top: 12px">
-      <ol start="4">
-        <li>Search for <strong>@userinfobot</strong> on Telegram and message it</li>
-        <li>It will reply with your numeric chat ID — paste it below</li>
-      </ol>
-    </div>
     <div class="field">
       <label>Your Chat ID</label>
       <input type="text" id="telegram-chat-id" placeholder="123456789">
-      <div class="hint">Numeric ID only — this restricts the bot to respond only to you</div>
+      <div class="hint">Numeric ID only — restricts the bot to respond only to you</div>
     </div>
-    <div id="telegram-status"></div>
-    <div class="actions">
-      <button class="btn-primary" onclick="validateAndNext('telegram')">Validate & Continue</button>
-    </div>
-  </div>
 
-  <!-- Step 2: Gemini -->
-  <div class="step" id="step-1">
-    <div class="step-header">
-      <h2>Gemini AI</h2>
-      <span class="step-number">Step 2 of 5</span>
-    </div>
+    <hr class="field-divider">
+    <div class="field-group-label">Gemini AI</div>
     <div class="instructions">
       <ol>
         <li><a href="https://aistudio.google.com/apikey" target="_blank">Click here to open Google AI Studio</a></li>
-        <li>Sign in with your Google account</li>
-        <li>Click <strong>"Create API Key"</strong> and copy it</li>
+        <li>Sign in with your Google account and click <strong>"Create API Key"</strong></li>
       </ol>
-      <p style="margin-top: 8px; font-size: 13px; color: #666;">Completely free — no credit card needed. 15 requests/min.</p>
+      <p style="margin-top: 6px; font-size: 13px; color: #666;">Free — no credit card needed.</p>
     </div>
     <div class="field">
       <label>Gemini API Key</label>
       <input type="text" id="gemini-key" placeholder="AIza...">
     </div>
-    <div id="gemini-status"></div>
-    <div class="actions">
-      <button class="btn-secondary" onclick="goBack()">Back</button>
-      <button class="btn-primary" onclick="validateAndNext('gemini')">Validate & Continue</button>
-    </div>
-  </div>
 
-  <!-- Step 3: imgbb -->
-  <div class="step" id="step-2">
-    <div class="step-header">
-      <h2>Image Hosting</h2>
-      <span class="step-number">Step 3 of 5</span>
-    </div>
+    <hr class="field-divider">
+    <div class="field-group-label">Image Hosting (imgbb)</div>
     <div class="instructions">
       <ol>
         <li><a href="https://api.imgbb.com/" target="_blank">Click here to open imgbb</a></li>
-        <li>Create a free account (or sign in)</li>
-        <li>Copy your API key from the dashboard</li>
+        <li>Create a free account (or sign in) and copy your API key</li>
       </ol>
-      <p style="margin-top: 8px; font-size: 13px; color: #666;">Free image hosting — used temporarily so Instagram and Facebook can access your images.</p>
+      <p style="margin-top: 6px; font-size: 13px; color: #666;">Free — used so Instagram can access your images via public URL.</p>
     </div>
     <div class="field">
       <label>imgbb API Key</label>
       <input type="text" id="imgbb-key" placeholder="abc123def456...">
     </div>
-    <div id="imgbb-status"></div>
+
+    <div id="apikeys-status"></div>
     <div class="actions">
-      <button class="btn-secondary" onclick="goBack()">Back</button>
-      <button class="btn-primary" onclick="validateAndNext('imgbb')">Validate & Continue</button>
+      <button class="btn-secondary" onclick="goToWelcome()">Back</button>
+      <button class="btn-primary" onclick="validateApiKeys()">Validate & Continue</button>
     </div>
   </div>
 
-  <!-- Step 4: LinkedIn -->
-  <div class="step" id="step-3">
+  <!-- Step 1: LinkedIn -->
+  <div class="step" id="step-1">
     <div class="step-header">
       <h2>LinkedIn</h2>
-      <span class="step-number">Step 4 of 5</span>
+      <span class="step-number">Step 2 of 3</span>
     </div>
     <div class="instructions">
       <ol>
@@ -454,11 +525,11 @@
     </div>
   </div>
 
-  <!-- Step 5: Meta -->
-  <div class="step" id="step-4">
+  <!-- Step 2: Meta -->
+  <div class="step" id="step-2">
     <div class="step-header">
       <h2>Facebook & Instagram</h2>
-      <span class="step-number">Step 5 of 5</span>
+      <span class="step-number">Step 3 of 3</span>
     </div>
     <div class="instructions">
       <ol>
@@ -504,7 +575,13 @@
 
       <div class="summary" id="summary"></div>
 
-      <p style="font-size: 15px; font-weight: 600; margin: 24px 0 8px;">Next — install as a background service:</p>
+      <p style="font-size: 15px; font-weight: 600; margin: 24px 0 4px;">Save a backup for your next machine:</p>
+      <p style="font-size: 13px; color: var(--gray); margin-bottom: 8px;">Importing this file on a new machine skips all OAuth flows.</p>
+      <button class="btn-export" onclick="downloadBackup()">&#8595; Save config backup</button>
+
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+
+      <p style="font-size: 15px; font-weight: 600; margin: 0 0 8px;">Next — install as a background service:</p>
       <div class="code-block">npm run install-service</div>
       <p style="font-size: 13px; color: var(--gray); margin-top: 8px;">Registers the bot with macOS launchd so it starts on login and auto-restarts on crash.</p>
 
@@ -520,20 +597,137 @@
 <script>
 // ── State ──
 
-let currentStep = 0;
-const totalSteps = 5;
+let currentStep = -1; // -1 = welcome screen
+const totalSteps = 3;
 const config = {};
 const skipped = new Set();
+
+// ── Welcome screen ──
+
+function startFresh() {
+  document.getElementById('header-subtitle').textContent = 'Configure your social media automation in 3 steps';
+  document.getElementById('progress').style.display = 'flex';
+  showStep(0);
+}
+
+function goToWelcome() {
+  document.getElementById('progress').style.display = 'none';
+  document.getElementById('header-subtitle').textContent = 'Configure your social media automation';
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-welcome').classList.add('active');
+  currentStep = -1;
+}
+
+// ── Import backup ──
+
+async function importBackup(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  showImportStatus('loading', 'Reading backup file...');
+
+  try {
+    const content = await file.text();
+    showImportStatus('loading', 'Validating credentials...');
+
+    const res = await fetch('/api/import-env', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    const data = await res.json();
+
+    if (!data.written) {
+      showImportStatus('error', 'Failed to write config file.');
+      return;
+    }
+
+    const v = data.validation;
+    const failed = Object.entries(v).filter(([, r]) => !r.valid && r.error !== 'Not configured');
+
+    if (data.allValid) {
+      showImportStatus('success', 'All credentials are valid — loading completion screen...');
+      setTimeout(() => {
+        buildSummaryFromValidation(v);
+        showComplete();
+      }, 1000);
+      return;
+    }
+
+    if (failed.length > 0) {
+      const names = failed.map(([k]) => k).join(', ');
+      showImportStatus('warning',
+        `Backup loaded. Some credentials need re-auth: ${names}. Continuing to wizard for those steps only.`
+      );
+      loadConfigFromBackup(content, v);
+      setTimeout(startFresh, 2000);
+    } else {
+      // Only "not configured" — treat as complete
+      showImportStatus('success', 'Backup restored — loading completion screen...');
+      setTimeout(() => {
+        buildSummaryFromValidation(v);
+        showComplete();
+      }, 1000);
+    }
+  } catch (err) {
+    showImportStatus('error', `Import failed: ${err.message}`);
+  }
+
+  // Reset so the same file can be re-selected if needed
+  input.value = '';
+}
+
+function loadConfigFromBackup(content, validation) {
+  const parsed = {};
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq > 0) parsed[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
+  }
+
+  if (validation.telegram?.valid) {
+    config.TELEGRAM_BOT_TOKEN = parsed.TELEGRAM_BOT_TOKEN;
+    config.TELEGRAM_CHAT_ID = parsed.TELEGRAM_CHAT_ID;
+  }
+  if (validation.gemini?.valid) config.GEMINI_API_KEY = parsed.GEMINI_API_KEY;
+  if (validation.imgbb?.valid) config.IMGBB_API_KEY = parsed.IMGBB_API_KEY;
+  if (validation.linkedin?.valid) {
+    config.LINKEDIN_ACCESS_TOKEN = parsed.LINKEDIN_ACCESS_TOKEN;
+    config.LINKEDIN_REFRESH_TOKEN = parsed.LINKEDIN_REFRESH_TOKEN;
+    config.LINKEDIN_CLIENT_ID = parsed.LINKEDIN_CLIENT_ID;
+    config.LINKEDIN_CLIENT_SECRET = parsed.LINKEDIN_CLIENT_SECRET;
+    config.LINKEDIN_ORG_ID = parsed.LINKEDIN_ORG_ID;
+    config.TOKEN_EXPIRY_LINKEDIN = parsed.TOKEN_EXPIRY_LINKEDIN;
+  }
+  if (validation.meta?.valid) {
+    config.FB_PAGE_ACCESS_TOKEN = parsed.FB_PAGE_ACCESS_TOKEN;
+    config.FB_PAGE_ID = parsed.FB_PAGE_ID;
+    config.IG_USER_ID = parsed.IG_USER_ID;
+    config.META_APP_ID = parsed.META_APP_ID;
+    config.META_APP_SECRET = parsed.META_APP_SECRET;
+    config.TOKEN_EXPIRY_META = parsed.TOKEN_EXPIRY_META;
+  }
+}
+
+function showImportStatus(type, message) {
+  const el = document.getElementById('import-status');
+  if (type === 'loading') {
+    el.innerHTML = `<div class="validation loading"><span class="spinner"></span> ${message}</div>`;
+  } else if (type === 'success') {
+    el.innerHTML = `<div class="validation success">&#10003; ${message}</div>`;
+  } else if (type === 'warning') {
+    el.innerHTML = `<div class="validation warning">&#9888; ${message}</div>`;
+  } else {
+    el.innerHTML = `<div class="validation error">&#10007; ${message}</div>`;
+  }
+}
 
 // ── Navigation ──
 
 function showStep(n) {
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-  if (n === totalSteps) {
-    document.getElementById('step-complete').classList.add('active');
-  } else {
-    document.getElementById(`step-${n}`).classList.add('active');
-  }
+  document.getElementById(`step-${n}`).classList.add('active');
 
   document.querySelectorAll('.progress-step').forEach((s, i) => {
     s.classList.remove('active', 'done', 'skipped');
@@ -544,17 +738,33 @@ function showStep(n) {
   currentStep = n;
 }
 
+function showComplete() {
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step-complete').classList.add('active');
+  document.getElementById('progress').style.display = 'none';
+  document.getElementById('header-subtitle').textContent = '';
+  document.querySelectorAll('.progress-step').forEach(s => {
+    s.classList.remove('active');
+    s.classList.add('done');
+  });
+}
+
 function nextStep() {
   showStep(currentStep + 1);
 }
 
 function goBack() {
   if (currentStep > 0) showStep(currentStep - 1);
+  else goToWelcome();
 }
 
-function skipStep(platform) {
+function skipStep() {
   skipped.add(currentStep);
-  nextStep();
+  if (currentStep + 1 >= totalSteps) {
+    finishSetup();
+  } else {
+    nextStep();
+  }
 }
 
 // ── Status display ──
@@ -584,69 +794,43 @@ async function api(path, body) {
   return res.json();
 }
 
-// ── Validation + navigation ──
+// ── API Keys step (Telegram + Gemini + imgbb combined) ──
 
-async function validateAndNext(type) {
-  clearStatus(`${type}-status`);
+async function validateApiKeys() {
+  clearStatus('apikeys-status');
 
-  if (type === 'telegram') {
-    const token = document.getElementById('telegram-token').value.trim();
-    const chatId = document.getElementById('telegram-chat-id').value.trim();
-    if (!token || !chatId) {
-      showStatus('telegram-status', 'error', 'Both fields are required');
-      return;
-    }
-    if (!/^\d+$/.test(chatId)) {
-      showStatus('telegram-status', 'error', 'Chat ID must be numeric');
-      return;
-    }
-    showStatus('telegram-status', 'loading', 'Validating...');
-    try {
-      const result = await api('/api/validate', { type: 'telegram', token });
-      config.TELEGRAM_BOT_TOKEN = token;
-      config.TELEGRAM_CHAT_ID = chatId;
-      showStatus('telegram-status', 'success', `Connected as @${result.botName}`);
-      setTimeout(nextStep, 800);
-    } catch (err) {
-      showStatus('telegram-status', 'error', `Invalid token: ${err.message}`);
-    }
+  const token = document.getElementById('telegram-token').value.trim();
+  const chatId = document.getElementById('telegram-chat-id').value.trim();
+  const geminiKey = document.getElementById('gemini-key').value.trim();
+  const imgbbKey = document.getElementById('imgbb-key').value.trim();
+
+  if (!token || !chatId || !geminiKey || !imgbbKey) {
+    showStatus('apikeys-status', 'error', 'All four fields are required');
+    return;
+  }
+  if (!/^\d+$/.test(chatId)) {
+    showStatus('apikeys-status', 'error', 'Chat ID must be numeric');
     return;
   }
 
-  if (type === 'gemini') {
-    const key = document.getElementById('gemini-key').value.trim();
-    if (!key) {
-      showStatus('gemini-status', 'error', 'API key is required');
-      return;
-    }
-    showStatus('gemini-status', 'loading', 'Validating...');
-    try {
-      await api('/api/validate', { type: 'gemini', key });
-      config.GEMINI_API_KEY = key;
-      showStatus('gemini-status', 'success', 'API key is valid');
-      setTimeout(nextStep, 800);
-    } catch (err) {
-      showStatus('gemini-status', 'error', `Invalid key: ${err.message}`);
-    }
-    return;
-  }
+  showStatus('apikeys-status', 'loading', 'Validating all keys...');
 
-  if (type === 'imgbb') {
-    const key = document.getElementById('imgbb-key').value.trim();
-    if (!key) {
-      showStatus('imgbb-status', 'error', 'API key is required');
-      return;
-    }
-    showStatus('imgbb-status', 'loading', 'Validating...');
-    try {
-      await api('/api/validate', { type: 'imgbb', key });
-      config.IMGBB_API_KEY = key;
-      showStatus('imgbb-status', 'success', 'API key is valid');
-      setTimeout(nextStep, 800);
-    } catch (err) {
-      showStatus('imgbb-status', 'error', `Invalid key: ${err.message}`);
-    }
-    return;
+  try {
+    const [telegramResult] = await Promise.all([
+      api('/api/validate', { type: 'telegram', token }),
+      api('/api/validate', { type: 'gemini', key: geminiKey }),
+      api('/api/validate', { type: 'imgbb', key: imgbbKey }),
+    ]);
+
+    config.TELEGRAM_BOT_TOKEN = token;
+    config.TELEGRAM_CHAT_ID = chatId;
+    config.GEMINI_API_KEY = geminiKey;
+    config.IMGBB_API_KEY = imgbbKey;
+
+    showStatus('apikeys-status', 'success', `All keys valid — Telegram bot: @${telegramResult.botName}`);
+    setTimeout(nextStep, 800);
+  } catch (err) {
+    showStatus('apikeys-status', 'error', `Validation failed: ${err.message}`);
   }
 }
 
@@ -668,7 +852,6 @@ async function startLinkedInOAuth() {
   const result = await api('/api/auth/linkedin/start', { clientId, clientSecret });
   window.open(result.authUrl, '_blank');
 
-  // Poll for result
   linkedInPollTimer = setInterval(async () => {
     const data = await api('/api/auth/linkedin/result');
     if (!data.pending) {
@@ -701,7 +884,6 @@ function onLinkedInConnected(data, clientId, clientSecret) {
     config.LINKEDIN_ORG_ID = data.orgs[0].urn;
     select.addEventListener('change', () => { config.LINKEDIN_ORG_ID = select.value; });
   } else {
-    // No orgs found — ask for manual entry
     document.getElementById('linkedin-org-select').style.display = 'block';
     const container = document.getElementById('linkedin-org-select');
     container.innerHTML = `
@@ -759,7 +941,6 @@ function onMetaConnected(data, appId, appSecret) {
     }
     document.getElementById('meta-page-select').style.display = 'block';
 
-    // Select first page by default
     selectMetaPage(data.pages[0]);
     select.addEventListener('change', () => {
       selectMetaPage(JSON.parse(select.value));
@@ -789,7 +970,7 @@ async function finishSetup() {
   try {
     await api('/api/save', { values: config });
     buildSummary();
-    showStep(totalSteps);
+    showComplete();
   } catch (err) {
     showStatus('meta-status', 'error', `Failed to save: ${err.message}`);
   }
@@ -814,6 +995,48 @@ function buildSummary() {
   document.getElementById('summary').innerHTML = html;
 }
 
+function buildSummaryFromValidation(validation) {
+  const rows = [
+    ['Telegram Bot', validation.telegram?.valid ? 'ok' : 'skip'],
+    ['Gemini AI', validation.gemini?.valid ? 'ok' : 'skip'],
+    ['Image Hosting', validation.imgbb?.valid ? 'ok' : 'skip'],
+    ['LinkedIn', validation.linkedin?.valid ? 'ok' : 'skip'],
+    ['Facebook', validation.meta?.valid ? 'ok' : 'skip'],
+    ['Instagram', validation.meta?.valid ? 'ok' : 'skip'],
+  ];
+
+  const html = rows.map(([name, status]) => {
+    const cls = status === 'ok' ? 'status-ok' : 'status-skip';
+    const label = status === 'ok' ? 'Connected' : 'Skipped';
+    return `<div class="summary-row"><span>${name}</span><span class="${cls}">${label}</span></div>`;
+  }).join('');
+
+  document.getElementById('summary').innerHTML = html;
+}
+
+// ── Export backup ──
+
+async function downloadBackup() {
+  try {
+    const res = await fetch('/api/export-env');
+    if (!res.ok) {
+      alert('Could not export config — .env file not found.');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lcs-backup.env';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert(`Export failed: ${err.message}`);
+  }
+}
+
 // ── Helpers ──
 
 function expiryDate(seconds) {
@@ -823,24 +1046,23 @@ function expiryDate(seconds) {
   return d.toISOString().split('T')[0];
 }
 
-// ── Init: check existing config ──
+// ── Init: pre-fill existing values ──
 
 (async function init() {
   try {
     const status = await api('/api/status');
     if (status.existing) {
-      // Pre-fill any existing values
       if (status.values.TELEGRAM_CHAT_ID) {
         document.getElementById('telegram-chat-id').value = status.values.TELEGRAM_CHAT_ID;
-      }
-      if (status.values.LINKEDIN_ORG_ID) {
-        config.LINKEDIN_ORG_ID = status.values.LINKEDIN_ORG_ID;
       }
       if (status.values.LINKEDIN_CLIENT_ID) {
         document.getElementById('linkedin-client-id').value = status.values.LINKEDIN_CLIENT_ID;
       }
       if (status.values.META_APP_ID) {
         document.getElementById('meta-app-id').value = status.values.META_APP_ID;
+      }
+      if (status.values.LINKEDIN_ORG_ID) {
+        config.LINKEDIN_ORG_ID = status.values.LINKEDIN_ORG_ID;
       }
       if (status.values.FB_PAGE_ID) {
         config.FB_PAGE_ID = status.values.FB_PAGE_ID;
