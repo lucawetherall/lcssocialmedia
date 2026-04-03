@@ -1,3 +1,252 @@
+# Simplified Setup Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Collapse the 3-command setup into one shell script, add .env backup/restore to skip all OAuth on new machines, and consolidate the 5-step wizard into 3 steps.
+
+**Architecture:** New `install.sh` handles Node check + npm install + wizard launch + optional service install. Two new server endpoints (`/api/export-env`, `/api/import-env`) power backup/restore. The wizard HTML is restructured to show a welcome/import screen followed by 3 steps (API Keys, LinkedIn, Meta) instead of 5.
+
+**Tech Stack:** Plain bash (install.sh), Node.js built-in modules (server endpoints), vanilla JS + HTML (wizard UI). No new dependencies.
+
+---
+
+## File Map
+
+| File | Change |
+|------|--------|
+| `install.sh` | **Create** — Node check, npm install, wizard, service prompt |
+| `scripts/setup-wizard/server.js` | **Modify** — add `/api/export-env` and `/api/import-env` endpoints |
+| `scripts/setup-wizard/public/index.html` | **Modify** — welcome/import screen, 3-step consolidation, export button on completion |
+| `README.md` | **Modify** — setup section simplified to one command |
+
+---
+
+## Task 1: Create `install.sh`
+
+**Files:**
+- Create: `install.sh`
+
+- [ ] **Step 1: Write `install.sh`**
+
+```bash
+#!/usr/bin/env bash
+set -e
+
+# ── Colours ──
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+
+echo ""
+echo "╔══════════════════════════════════════════════════╗"
+echo "║   LCS Social Media — Setup                       ║"
+echo "╚══════════════════════════════════════════════════╝"
+echo ""
+
+# ── Check Node.js ──
+if ! command -v node &>/dev/null; then
+  echo -e "${RED}✗ Node.js not found.${NC}"
+  echo ""
+  echo "  Install it from: https://nodejs.org  (choose the LTS version)"
+  echo "  Then re-run: bash install.sh"
+  echo ""
+  exit 1
+fi
+
+NODE_VERSION=$(node -e "process.exit(parseInt(process.versions.node.split('.')[0]) < 18 ? 1 : 0)" 2>/dev/null && echo "ok" || echo "old")
+if [ "$NODE_VERSION" = "old" ]; then
+  CURRENT=$(node --version)
+  echo -e "${YELLOW}⚠ Node.js ${CURRENT} is too old. Version 18 or newer is required.${NC}"
+  echo ""
+  echo "  Update from: https://nodejs.org  (choose the LTS version)"
+  echo "  Then re-run: bash install.sh"
+  echo ""
+  exit 1
+fi
+
+echo -e "${GREEN}✓ Node.js $(node --version)${NC}"
+echo ""
+
+# ── Install dependencies ──
+echo "Installing dependencies..."
+npm install --silent
+echo -e "${GREEN}✓ Dependencies installed${NC}"
+echo ""
+
+# ── Run setup wizard ──
+echo "Opening setup wizard in your browser..."
+echo ""
+npm run setup
+
+# ── Service install prompt ──
+echo ""
+echo -e "${YELLOW}Install as a background service?${NC}"
+echo "  This makes the bot start automatically on login and restart if it crashes."
+echo ""
+read -r -p "Install service? (y/N) " REPLY
+echo ""
+if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+  npm run install-service
+  echo ""
+  echo -e "${GREEN}✓ Service installed. The bot will start automatically on login.${NC}"
+else
+  echo "  To start manually: npm start"
+  echo "  To install the service later: npm run install-service"
+fi
+
+echo ""
+echo -e "${GREEN}All done! Open Telegram and send /generate to your bot.${NC}"
+echo ""
+```
+
+- [ ] **Step 2: Make executable and verify**
+
+```bash
+chmod +x install.sh
+head -5 install.sh
+```
+
+Expected output: first 5 lines of the script including `#!/usr/bin/env bash`.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add install.sh
+git commit -m "feat: add install.sh — one-command setup (node check + install + wizard + service prompt)"
+```
+
+---
+
+## Task 2: Add `/api/export-env` and `/api/import-env` endpoints to server.js
+
+**Files:**
+- Modify: `scripts/setup-wizard/server.js`
+
+The export endpoint reads the current `.env` file and returns it as a file download. The import endpoint accepts raw `.env` text, writes it, then validates each platform's credentials using the existing validation functions (`validateTelegram`, `validateGemini`, `validateImgbb`, `validateLinkedIn`, `validateMeta`) and returns per-platform status.
+
+- [ ] **Step 1: Add export endpoint — insert before the `// ── 404 ──` comment in `server.js`**
+
+Find this line in `server.js` (around line 567):
+```js
+    // ── 404 ──
+```
+
+Insert immediately before it:
+```js
+    // ── API: export .env as backup ──
+    if (method === 'GET' && url.pathname === '/api/export-env') {
+      if (!existsSync(ENV_PATH)) {
+        sendJson(res, 404, { error: 'No .env file found' });
+        return;
+      }
+      const content = readFileSync(ENV_PATH, 'utf8');
+      res.writeHead(200, {
+        'Content-Type': 'text/plain',
+        'Content-Disposition': 'attachment; filename="lcs-backup.env"',
+      });
+      res.end(content);
+      return;
+    }
+
+    // ── API: import .env from backup ──
+    if (method === 'POST' && url.pathname === '/api/import-env') {
+      const body = await readBody(req);
+      const { content } = body;
+
+      // Parse the uploaded .env content
+      const parsed = {};
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eq = trimmed.indexOf('=');
+        if (eq > 0) parsed[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
+      }
+
+      // Write the .env file
+      writeEnvFile(parsed);
+
+      // Validate each platform in parallel
+      const results = {};
+
+      const checks = [
+        parsed.TELEGRAM_BOT_TOKEN
+          ? validateTelegram(parsed.TELEGRAM_BOT_TOKEN)
+              .then(() => { results.telegram = { valid: true }; })
+              .catch(e => { results.telegram = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.telegram = { valid: false, error: 'Not configured' }; }),
+
+        parsed.GEMINI_API_KEY
+          ? validateGemini(parsed.GEMINI_API_KEY)
+              .then(() => { results.gemini = { valid: true }; })
+              .catch(e => { results.gemini = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.gemini = { valid: false, error: 'Not configured' }; }),
+
+        parsed.IMGBB_API_KEY
+          ? validateImgbb(parsed.IMGBB_API_KEY)
+              .then(() => { results.imgbb = { valid: true }; })
+              .catch(e => { results.imgbb = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.imgbb = { valid: false, error: 'Not configured' }; }),
+
+        parsed.LINKEDIN_ACCESS_TOKEN
+          ? validateLinkedIn(parsed.LINKEDIN_ACCESS_TOKEN, parsed.LINKEDIN_ORG_ID)
+              .then(() => { results.linkedin = { valid: true }; })
+              .catch(e => { results.linkedin = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.linkedin = { valid: false, error: 'Not configured' }; }),
+
+        parsed.FB_PAGE_ACCESS_TOKEN
+          ? validateMeta(parsed.FB_PAGE_ACCESS_TOKEN, parsed.FB_PAGE_ID)
+              .then(() => { results.meta = { valid: true }; })
+              .catch(e => { results.meta = { valid: false, error: e.message }; })
+          : Promise.resolve().then(() => { results.meta = { valid: false, error: 'Not configured' }; }),
+      ];
+
+      await Promise.all(checks);
+
+      const allValid = Object.values(results).every(r => r.valid);
+      sendJson(res, 200, { written: true, validation: results, allValid });
+      return;
+    }
+
+```
+
+- [ ] **Step 2: Verify server.js still has valid JS (no syntax errors)**
+
+```bash
+node --input-type=module < scripts/setup-wizard/server.js 2>&1 | head -5 || true
+```
+
+Expected: either silence or the server starting (Ctrl+C to stop). If there's a syntax error it will print it clearly.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add scripts/setup-wizard/server.js
+git commit -m "feat: add /api/export-env and /api/import-env endpoints for config backup/restore"
+```
+
+---
+
+## Task 3: Rewrite wizard HTML — welcome/import screen + 3-step consolidation + export button
+
+**Files:**
+- Modify: `scripts/setup-wizard/public/index.html`
+
+This is the largest change. The current 5-step wizard becomes:
+- Welcome screen (import backup or start fresh) — `id="screen-welcome"`
+- Step 0: API Keys (Telegram + Gemini + imgbb on one screen)
+- Step 1: LinkedIn (unchanged logic)
+- Step 2: Meta (unchanged logic)
+- Completion screen with "Save config backup" download button
+
+The progress bar changes from 5 dots to 3 dots.
+
+The `totalSteps` JS variable changes from `5` to `3`.
+
+Replace the entire content of `index.html` with the following:
+
+- [ ] **Step 1: Replace `index.html`**
+
+Replace the full file with:
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -400,7 +649,7 @@
     <div class="step-header">
       <h2>Welcome</h2>
     </div>
-    <p style="color: var(--gray); font-size: 14px; margin-bottom: 8px;">
+    <p style="color: var(--gray); font-size: 14px; margin-bottom: 4px;">
       First time? Setup takes about 40 minutes — you'll connect Telegram, Gemini AI, image hosting, LinkedIn, and Facebook/Instagram.
     </p>
     <p style="color: var(--gray); font-size: 14px;">
@@ -413,7 +662,7 @@
         <div class="welcome-option-desc">Connect all platforms step by step (~40 min)</div>
       </button>
       <button class="welcome-option" onclick="document.getElementById('backup-file-input').click()">
-        <div class="welcome-option-title">&#9889; Restore from backup</div>
+        <div class="welcome-option-title">⚡ Restore from backup</div>
         <div class="welcome-option-desc">Import a saved config file — skips all OAuth flows</div>
       </button>
     </div>
@@ -644,9 +893,12 @@ async function importBackup(input) {
 
     const v = data.validation;
     const failed = Object.entries(v).filter(([, r]) => !r.valid && r.error !== 'Not configured');
+    const notConfigured = Object.entries(v).filter(([, r]) => r.error === 'Not configured');
 
     if (data.allValid) {
       showImportStatus('success', 'All credentials are valid — loading completion screen...');
+      // Populate config from .env for summary
+      config._fromBackup = true;
       setTimeout(() => {
         buildSummaryFromValidation(v);
         showComplete();
@@ -657,13 +909,18 @@ async function importBackup(input) {
     if (failed.length > 0) {
       const names = failed.map(([k]) => k).join(', ');
       showImportStatus('warning',
-        `Backup loaded. Some credentials need re-auth: ${names}. Continuing to wizard for those steps only.`
+        `Backup loaded. Some credentials need re-auth: ${names}. ` +
+        `Continuing to wizard for those steps only.`
       );
+      // Pre-populate config with the valid values from backup
       loadConfigFromBackup(content, v);
-      setTimeout(startFresh, 2000);
+      setTimeout(() => {
+        startFresh();
+      }, 2000);
     } else {
-      // Only "not configured" — treat as complete
+      // Only "not configured" failures — treat as complete
       showImportStatus('success', 'Backup restored — loading completion screen...');
+      config._fromBackup = true;
       setTimeout(() => {
         buildSummaryFromValidation(v);
         showComplete();
@@ -673,7 +930,7 @@ async function importBackup(input) {
     showImportStatus('error', `Import failed: ${err.message}`);
   }
 
-  // Reset so the same file can be re-selected if needed
+  // Reset file input so the same file can be re-selected if needed
   input.value = '';
 }
 
@@ -686,6 +943,7 @@ function loadConfigFromBackup(content, validation) {
     if (eq > 0) parsed[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
   }
 
+  // Copy valid platform configs into working config
   if (validation.telegram?.valid) {
     config.TELEGRAM_BOT_TOKEN = parsed.TELEGRAM_BOT_TOKEN;
     config.TELEGRAM_CHAT_ID = parsed.TELEGRAM_CHAT_ID;
@@ -758,7 +1016,7 @@ function goBack() {
   else goToWelcome();
 }
 
-function skipStep() {
+function skipStep(platform) {
   skipped.add(currentStep);
   if (currentStep + 1 >= totalSteps) {
     finishSetup();
@@ -816,7 +1074,7 @@ async function validateApiKeys() {
   showStatus('apikeys-status', 'loading', 'Validating all keys...');
 
   try {
-    const [telegramResult] = await Promise.all([
+    const [telegramResult, , ] = await Promise.all([
       api('/api/validate', { type: 'telegram', token }),
       api('/api/validate', { type: 'gemini', key: geminiKey }),
       api('/api/validate', { type: 'imgbb', key: imgbbKey }),
@@ -1073,3 +1331,103 @@ function expiryDate(seconds) {
 </script>
 </body>
 </html>
+```
+
+- [ ] **Step 2: Verify the file was written correctly (check key landmarks)**
+
+```bash
+grep -c "screen-welcome\|step-0\|step-1\|step-2\|step-complete\|downloadBackup\|importBackup\|validateApiKeys" scripts/setup-wizard/public/index.html
+```
+
+Expected: `8` (one match per landmark).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add scripts/setup-wizard/public/index.html
+git commit -m "feat: wizard — welcome/import screen, 3-step consolidation, backup export button"
+```
+
+---
+
+## Task 4: Update README
+
+**Files:**
+- Modify: `README.md`
+
+- [ ] **Step 1: Replace the setup section in README.md**
+
+Find and replace the current "## Setup" section. The new section is:
+
+```markdown
+## Setup
+
+```bash
+bash install.sh
+```
+
+This single command checks for Node.js, installs dependencies, opens the guided setup wizard in your browser, and optionally installs the bot as a background service.
+
+**The wizard walks you through 3 steps:**
+
+1. **API Keys** — Telegram bot token + chat ID, Gemini AI key, imgbb key (~7 min)
+2. **LinkedIn** — guided OAuth flow, auto-detects your Company Page (~15 min)
+3. **Facebook & Instagram** — guided OAuth flow, auto-detects Page + IG account (~15 min)
+
+Each step validates credentials in real-time. You can skip any platform you don't use.
+
+**Already set up on another machine?** Click "Restore from backup" in the wizard and select your saved `lcs-backup.env` file — all OAuth flows are skipped.
+
+For advanced users, a CLI fallback is available: `npm run setup:cli`
+```
+
+- [ ] **Step 2: Verify README looks right**
+
+```bash
+grep -A 20 "## Setup" README.md | head -25
+```
+
+Expected: shows `bash install.sh` as the first code block.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add README.md
+git commit -m "docs: simplify setup section to single install.sh command"
+```
+
+---
+
+## Task 5: Verify end-to-end
+
+- [ ] **Step 1: Verify install.sh is executable and passes a basic syntax check**
+
+```bash
+bash -n install.sh && echo "Syntax OK"
+```
+
+Expected: `Syntax OK`
+
+- [ ] **Step 2: Check server.js has the new endpoints**
+
+```bash
+grep -n "export-env\|import-env" scripts/setup-wizard/server.js
+```
+
+Expected: two lines showing the endpoint path strings.
+
+- [ ] **Step 3: Check wizard HTML has all 4 screens**
+
+```bash
+grep -n "screen-welcome\|id=\"step-0\"\|id=\"step-1\"\|id=\"step-2\"\|step-complete" scripts/setup-wizard/public/index.html
+```
+
+Expected: 5 lines (one per screen/step).
+
+- [ ] **Step 4: Check git log looks clean**
+
+```bash
+git log --oneline -6
+```
+
+Expected: 4 new commits on top of the previous history (install.sh, server endpoints, wizard HTML, README).
